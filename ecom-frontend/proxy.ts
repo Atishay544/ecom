@@ -22,10 +22,25 @@ export async function proxy(req: NextRequest) {
   // Build a response we can attach cookies to
   let response = NextResponse.next({ request: req })
 
+  // Skip Supabase session refresh if env vars are not configured (e.g. Vercel
+  // preview without env vars set). Protected routes redirect to login as a safe
+  // fallback — users won't be able to authenticate anyway without Supabase.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseKey) {
+    const needsAuth = PROTECTED.some(p => pathname.startsWith(p))
+    if (needsAuth) {
+      const loginUrl = new URL('/login', req.url)
+      loginUrl.searchParams.set('redirect', pathname)
+      return NextResponse.redirect(loginUrl)
+    }
+    return response
+  }
+
   // Use @supabase/ssr (Edge-compatible) — anon key only, no Node.js APIs
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll: () => req.cookies.getAll(),

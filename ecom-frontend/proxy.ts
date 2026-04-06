@@ -7,7 +7,7 @@ import { createServerClient } from '@supabase/ssr'
 // app/admin/layout.tsx which runs in Node.js runtime with full API access.
 const PROTECTED = ['/account', '/checkout', '/wishlist', '/admin']
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // Block attack paths

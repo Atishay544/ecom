@@ -3,6 +3,9 @@ import { ArrowLeft } from 'lucide-react'
 import AdminNav from './AdminNav'
 import { requireAdmin } from '@/lib/admin-auth'
 
+// Admin pages are always authenticated — never statically generate them
+export const dynamic = 'force-dynamic'
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // requireAdmin is React cache() — shared with page, only 1 DB round trip per request
   const { user, profile } = await requireAdmin()

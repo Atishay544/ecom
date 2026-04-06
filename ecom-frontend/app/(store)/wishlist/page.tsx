@@ -1,4 +1,7 @@
 import { requireUser } from '@/lib/user-auth'
+
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import Image from 'next/image'
 import { formatPrice } from '@/lib/utils'

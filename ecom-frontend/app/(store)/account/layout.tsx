@@ -1,6 +1,9 @@
 import { requireUser } from '@/lib/user-auth'
 import AccountNav from './AccountNav'
 
+// Account pages are always user-specific — never statically generate them
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'My Account',
   robots: { index: false, follow: false },

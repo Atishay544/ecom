@@ -11,6 +11,9 @@ export const revalidate = 60
 
 const getStaticHomeData = unstable_cache(
   async () => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      return { banners: [], categories: [] }
+    }
     const supabase = createPublicClient()
     const [{ data: bannersRaw }, { data: categoriesRaw }] = await Promise.all([
       supabase

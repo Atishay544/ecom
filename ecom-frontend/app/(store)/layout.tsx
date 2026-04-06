@@ -8,6 +8,10 @@ import ChatWidget from '@/components/chat/ChatWidget'
 // Cached for 60s — categories/announcements rarely change
 const getLayoutData = unstable_cache(
   async () => {
+    // Guard: skip DB call at build time if env vars are not configured
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      return { announcement: null, categories: [] }
+    }
     const supabase = createPublicClient()
     const now = new Date().toISOString()
     const [{ data: announcements }, { data: categoriesRaw }] = await Promise.all([

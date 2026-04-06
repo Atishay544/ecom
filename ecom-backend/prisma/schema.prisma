@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Mirror of Supabase schema for Prisma ORM
+// Run: prisma db pull  (to sync from live DB)
+// Run: prisma generate (to regenerate client)
+
+model Profile {
+  id        String   @id @db.Uuid
+  fullName  String?  @map("full_name")
+  avatarUrl String?  @map("avatar_url")
+  phone     String?
+  role      String   @default("customer")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  orders    Order[]
+  cartItems CartItem[]
+  @@map("profiles")
+}
+
+model Category {
+  id        String     @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String     @unique
+  parentId  String?    @map("parent_id") @db.Uuid
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  imageUrl  String?    @map("image_url")
+  sortOrder Int        @default(0) @map("sort_order")
+  products  Product[]
+  @@map("categories")
+}
+
+model Product {
+  id           String      @id @default(uuid()) @db.Uuid
+  name         String
+  slug         String      @unique
+  description  String?
+  price        Decimal     @db.Decimal(10, 2)
+  comparePrice Decimal?    @map("compare_price") @db.Decimal(10, 2)
+  stock        Int         @default(0)
+  images       String[]
+  categoryId   String?     @map("category_id") @db.Uuid
+  category     Category?   @relation(fields: [categoryId], references: [id])
+  isActive     Boolean     @default(true) @map("is_active")
+  metadata     Json        @default("{}")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  @@map("products")
+}
+
+model CartItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      Profile  @relation(fields: [userId], references: [id])
+  productId String   @map("product_id") @db.Uuid
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  createdAt DateTime @default(now()) @map("created_at")
+  @@unique([userId, productId])
+  @@map("cart_items")
+}
+
+model Order {
+  id                     String      @id @default(uuid()) @db.Uuid
+  userId                 String?     @map("user_id") @db.Uuid
+  user                   Profile?    @relation(fields: [userId], references: [id])
+  status                 String      @default("pending")
+  subtotal               Decimal     @db.Decimal(10, 2)
+  tax                    Decimal     @default(0) @db.Decimal(10, 2)
+  shipping               Decimal     @default(0) @db.Decimal(10, 2)
+  total                  Decimal     @db.Decimal(10, 2)
+  razorpayOrderId        String?     @unique @map("razorpay_order_id")
+  razorpayPaymentId      String?     @unique @map("razorpay_payment_id")
+  trackingNumber         String?     @map("tracking_number")
+  trackingUrl            String?     @map("tracking_url")
+  shippingAddress        Json        @map("shipping_address")
+  metadata               Json        @default("{}")
+  createdAt              DateTime    @default(now()) @map("created_at")
+  updatedAt              DateTime    @updatedAt @map("updated_at")
+  items                  OrderItem[]
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(uuid()) @db.Uuid
+  orderId   String  @map("order_id") @db.Uuid
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String? @map("product_id") @db.Uuid
+  product   Product? @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Decimal @map("unit_price") @db.Decimal(10, 2)
+  total     Decimal @db.Decimal(10, 2)
+  snapshot  Json
+  @@map("order_items")
+}
+
+model FraudLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  ip        String?
+  reason    String
+  metadata  Json     @default("{}")
+  reviewed  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  @@map("fraud_log")
+}

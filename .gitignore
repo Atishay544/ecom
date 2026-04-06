@@ -1,0 +1,19 @@
+# Claude / AI agent files
+.claude/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+STATUS.md
+docs/
+supabase/
+
+# Node
+node_modules/
+.next/
+.env
+.env.local
+.env*.local
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,229 @@
+'use client'
+import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
+import { useRouter, usePathname } from 'next/navigation'
+import { ShoppingCart, Heart, Search, User, Menu, X, ChevronDown } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useCartStore } from '@/lib/store/cart'
+import { useAuth } from '@/lib/hooks/useAuth'
+import ProfileDrawer from './ProfileDrawer'
+
+export default function Header({ categories }: { categories: any[] }) {
+  const itemCount = useCartStore(s => s.itemCount())
+  const { user } = useAuth()
+  const router = useRouter()
+  const pathname = usePathname()
+  const [searchQ, setSearchQ] = useState('')
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault()
+    if (searchQ.trim()) router.push(`/search?q=${encodeURIComponent(searchQ.trim())}`)
+  }
+
+  return (
+    <>
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-100" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div className="max-w-350 mx-auto px-4 sm:px-6 lg:px-10 h-16 flex items-center gap-4">
+
+          {/* Mobile menu toggle */}
+          <button className="md:hidden text-gray-700 hover:text-black transition" onClick={() => setMobileOpen(!mobileOpen)}>
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+
+          {/* Logo */}
+          <Link href="/" className="text-lg font-extrabold tracking-tight text-gray-900 shrink-0 hover:text-indigo-600 transition-colors duration-200">
+            STORE
+          </Link>
+
+          {/* Category nav (desktop) */}
+          <nav className="hidden md:flex gap-1 ml-4">
+            {categories.map(cat => {
+              const isActive = pathname === `/category/${cat.slug}`
+              return (
+                <div key={cat.id} className="relative group">
+                  <Link
+                    href={`/category/${cat.slug}`}
+                    prefetch={false}
+                    className={`relative px-3 py-2 text-sm font-medium flex items-center gap-0.5 rounded-lg transition-colors duration-200 ${
+                      isActive
+                        ? 'text-indigo-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    {cat.name}
+                    {cat.children?.length > 0 && (
+                      <ChevronDown size={13} className="opacity-60 group-hover:rotate-180 transition-transform duration-200" />
+                    )}
+                    {isActive && (
+                      <motion.span
+                        layoutId="nav-underline"
+                        className="absolute bottom-0 left-3 right-3 h-0.5 bg-indigo-600 rounded-full"
+                        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      />
+                    )}
+                  </Link>
+
+                  {cat.children?.length > 0 && (
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-100 shadow-xl rounded-2xl py-2 min-w-48 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                      {cat.children.map((sub: any) => (
+                        <Link
+                          key={sub.id}
+                          href={`/category/${sub.slug}`}
+                          prefetch={false}
+                          className="flex items-center px-4 py-2.5 text-sm text-gray-600 hover:text-indigo-600 hover:bg-indigo-50/60 transition-colors duration-150"
+                        >
+                          {sub.name}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
+            {/* All Products link */}
+            <Link
+              href="/products"
+              prefetch={false}
+              className={`relative px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                pathname === '/products'
+                  ? 'text-indigo-600'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              All Products
+              {pathname === '/products' && (
+                <motion.span
+                  layoutId="nav-underline"
+                  className="absolute bottom-0 left-3 right-3 h-0.5 bg-indigo-600 rounded-full"
+                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                />
+              )}
+            </Link>
+          </nav>
+
+          {/* Search */}
+          <form onSubmit={handleSearch} className="flex-1 max-w-md hidden md:flex items-center bg-gray-100 hover:bg-gray-200/70 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-300 transition-all duration-200 rounded-full px-3.5 py-2 gap-2 ml-2">
+            <Search size={14} className="text-gray-400 shrink-0" />
+            <input
+              ref={searchRef}
+              type="text"
+              placeholder="Search products..."
+              value={searchQ}
+              onChange={e => setSearchQ(e.target.value)}
+              className="flex-1 text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400"
+            />
+          </form>
+
+          <div className="ml-auto flex items-center gap-1">
+            {/* Search (mobile) */}
+            <button className="md:hidden p-2 text-gray-600 hover:text-black transition" onClick={() => router.push('/search')}>
+              <Search size={20} />
+            </button>
+
+            {/* Wishlist */}
+            <Link href="/wishlist"
+              className="hidden sm:flex p-2 text-gray-600 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all duration-200">
+              <Heart size={20} />
+            </Link>
+
+            {/* Cart */}
+            <Link href="/cart"
+              className="relative p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-200">
+              <ShoppingCart size={20} />
+              <AnimatePresence>
+                {mounted && itemCount > 0 && (
+                  <motion.span
+                    key="cart-badge"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    className="absolute top-0.5 right-0.5 bg-indigo-600 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold leading-none"
+                  >
+                    {itemCount > 9 ? '9+' : itemCount}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </Link>
+
+            {/* Profile */}
+            <button
+              onClick={() => user ? setProfileOpen(true) : router.push('/login')}
+              className="flex items-center gap-2 ml-1 transition-all duration-200"
+            >
+              {user
+                ? <div className="w-8 h-8 rounded-full bg-gray-900 hover:bg-indigo-600 text-white flex items-center justify-center text-xs font-bold transition-colors duration-200">
+                    {user.email?.[0]?.toUpperCase() ?? 'U'}
+                  </div>
+                : <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-indigo-600 hover:border-indigo-300 border border-gray-200 rounded-full px-3 py-1.5 transition-all duration-200">
+                    <User size={14} />
+                    <span className="hidden sm:inline">Sign in</span>
+                  </div>
+              }
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile menu */}
+        <AnimatePresence>
+          {mobileOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              className="md:hidden border-t border-gray-100 bg-white overflow-hidden"
+            >
+              <div className="px-4 py-4 space-y-0.5">
+                {categories.map(cat => (
+                  <Link
+                    key={cat.id}
+                    href={`/category/${cat.slug}`}
+                    prefetch={false}
+                    className={`block py-2.5 px-3 text-sm font-medium rounded-lg transition-colors duration-150 ${
+                      pathname === `/category/${cat.slug}`
+                        ? 'text-indigo-600 bg-indigo-50'
+                        : 'text-gray-700 hover:text-black hover:bg-gray-50'
+                    }`}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    {cat.name}
+                  </Link>
+                ))}
+                <Link
+                  href="/products"
+                  prefetch={false}
+                  className={`block py-2.5 px-3 text-sm font-medium rounded-lg transition-colors duration-150 ${
+                    pathname === '/products'
+                      ? 'text-indigo-600 bg-indigo-50'
+                      : 'text-gray-700 hover:text-black hover:bg-gray-50'
+                  }`}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  All Products
+                </Link>
+                <form onSubmit={handleSearch} className="flex items-center bg-gray-100 rounded-full px-3 py-2 gap-2 mt-3">
+                  <Search size={14} className="text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={searchQ}
+                    onChange={e => setSearchQ(e.target.value)}
+                    className="flex-1 text-sm outline-none bg-transparent"
+                  />
+                </form>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </header>
+
+      <ProfileDrawer open={profileOpen} onClose={() => setProfileOpen(false)} />
+    </>
+  )
+}

@@ -34,6 +34,14 @@ export async function DELETE(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id } = await req.json()
+
+  // Unlink products before deleting to avoid FK constraint
+  const { error: unlinkErr } = await admin
+    .from('products')
+    .update({ category_id: null })
+    .eq('category_id', id)
+  if (unlinkErr) return NextResponse.json({ error: unlinkErr.message }, { status: 400 })
+
   const { error } = await admin.from('categories').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ success: true })

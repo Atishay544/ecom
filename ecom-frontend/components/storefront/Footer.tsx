@@ -1,12 +1,8 @@
 import Link from 'next/link'
 
-const links = {
-  Shop:    [
-    { label: 'All Products', href: '/products' },
-    { label: 'Men', href: '/category/men' },
-    { label: 'Women', href: '/category/women' },
-    { label: 'Electronics', href: '/category/electronics' },
-  ],
+type Category = { id: string; name: string; slug: string }
+
+const staticLinks = {
   Account: [
     { label: 'My Orders', href: '/account/orders' },
     { label: 'Wishlist', href: '/wishlist' },
@@ -30,7 +26,7 @@ const socials = [
   { label: 'Facebook',  href: '#', icon: 'FB' },
 ]
 
-export default function Footer() {
+export default function Footer({ categories = [] }: { categories?: Category[] }) {
   return (
     <footer className="bg-gray-900 text-gray-300 pt-12 pb-6 mt-16">
       <div className="max-w-350 mx-auto px-4 sm:px-6 lg:px-10 grid grid-cols-2 md:grid-cols-5 gap-8 mb-10">
@@ -48,7 +44,25 @@ export default function Footer() {
           </div>
         </div>
 
-        {Object.entries(links).map(([title, items]) => (
+        {/* Shop — dynamic categories from DB */}
+        <div>
+          <h3 className="text-white font-semibold mb-3 text-sm">Shop</h3>
+          <ul className="space-y-2">
+            <li>
+              <Link href="/products" className="text-sm hover:text-white transition">All Products</Link>
+            </li>
+            {categories.map(cat => (
+              <li key={cat.id}>
+                <Link href={`/category/${cat.slug}`} className="text-sm hover:text-white transition">
+                  {cat.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Static link sections */}
+        {Object.entries(staticLinks).map(([title, items]) => (
           <div key={title}>
             <h3 className="text-white font-semibold mb-3 text-sm">{title}</h3>
             <ul className="space-y-2">

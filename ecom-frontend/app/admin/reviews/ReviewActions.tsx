@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 interface Props {
   reviewId: string
@@ -13,6 +14,7 @@ interface Props {
 export default function ReviewActions({ reviewId, isApproved, isRejected }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -40,10 +42,10 @@ export default function ReviewActions({ reviewId, isApproved, isRejected }: Prop
   }
 
   async function handleDelete() {
-    if (!confirm('Delete this review permanently?')) return
     setLoading(true)
     await supabase.from('reviews').delete().eq('id', reviewId)
     setLoading(false)
+    setShowConfirm(false)
     router.refresh()
   }
 
@@ -68,12 +70,20 @@ export default function ReviewActions({ reviewId, isApproved, isRejected }: Prop
         </button>
       )}
       <button
-        onClick={handleDelete}
+        onClick={() => setShowConfirm(true)}
         disabled={loading}
         className="text-xs text-gray-500 hover:text-red-600 px-3 py-1.5 rounded-lg font-medium disabled:opacity-50 transition-colors"
       >
         Delete
       </button>
+      {showConfirm && (
+        <ConfirmModal
+          message="Delete this review permanently? This cannot be undone."
+          onConfirm={handleDelete}
+          onCancel={() => setShowConfirm(false)}
+          loading={loading}
+        />
+      )}
     </div>
   )
 }

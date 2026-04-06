@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import ImageUploader from '../products/ImageUploader'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 type Style = 'overlay' | 'image_only' | 'solid'
 
@@ -25,6 +26,7 @@ export default function BannerListItem({ banner }: { banner: Banner }) {
   const [isEditing, setIsEditing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [showConfirm, setShowConfirm] = useState(false)
 
   // ── Edit form state ──────────────────────────────────────────────────────────
   const [style, setStyle]         = useState<Style>((banner.display_style as Style) ?? 'overlay')
@@ -102,7 +104,6 @@ export default function BannerListItem({ banner }: { banner: Banner }) {
   }
 
   async function handleDelete() {
-    if (!confirm('Delete this banner?')) return
     setBusy(true); setError('')
     const res = await fetch('/api/admin/banners', {
       method: 'DELETE',
@@ -110,6 +111,8 @@ export default function BannerListItem({ banner }: { banner: Banner }) {
       body: JSON.stringify({ id: banner.id }),
     })
     setBusy(false)
+    setBusy(false)
+    setShowConfirm(false)
     if (!res.ok) { const j = await res.json(); setError(j.error); return }
     router.refresh()
   }
@@ -181,12 +184,20 @@ export default function BannerListItem({ banner }: { banner: Banner }) {
             {busy ? '…' : banner.is_active ? 'Deactivate' : 'Activate'}
           </button>
           <button
-            onClick={handleDelete}
+            onClick={() => setShowConfirm(true)}
             disabled={busy}
             className="text-xs text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded transition-colors disabled:opacity-40"
           >
             Delete
           </button>
+          {showConfirm && (
+            <ConfirmModal
+              message="Delete this banner? This cannot be undone."
+              onConfirm={handleDelete}
+              onCancel={() => setShowConfirm(false)}
+              loading={busy}
+            />
+          )}
         </div>
       </div>
 

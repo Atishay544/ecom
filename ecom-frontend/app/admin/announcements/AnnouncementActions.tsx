@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 interface Props {
   announcementId: string
@@ -12,6 +13,7 @@ export default function AnnouncementActions({ announcementId, isActive }: Props)
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [showConfirm, setShowConfirm] = useState(false)
 
   async function toggle() {
     setBusy(true)
@@ -27,7 +29,6 @@ export default function AnnouncementActions({ announcementId, isActive }: Props)
   }
 
   async function handleDelete() {
-    if (!confirm('Delete this announcement?')) return
     setBusy(true)
     setError('')
     const res = await fetch('/api/admin/announcements', {
@@ -36,6 +37,7 @@ export default function AnnouncementActions({ announcementId, isActive }: Props)
       body: JSON.stringify({ id: announcementId }),
     })
     setBusy(false)
+    setShowConfirm(false)
     if (!res.ok) { const j = await res.json(); setError(j.error); return }
     router.refresh()
   }
@@ -55,7 +57,7 @@ export default function AnnouncementActions({ announcementId, isActive }: Props)
           {busy ? '…' : isActive ? 'Deactivate' : 'Activate'}
         </button>
         <button
-          onClick={handleDelete}
+          onClick={() => setShowConfirm(true)}
           disabled={busy}
           className="text-xs text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded transition-colors disabled:opacity-40"
         >
@@ -63,6 +65,14 @@ export default function AnnouncementActions({ announcementId, isActive }: Props)
         </button>
       </div>
       {error && <p className="text-[11px] text-red-500">{error}</p>}
+      {showConfirm && (
+        <ConfirmModal
+          message="Delete this announcement? This cannot be undone."
+          onConfirm={handleDelete}
+          onCancel={() => setShowConfirm(false)}
+          loading={busy}
+        />
+      )}
     </div>
   )
 }

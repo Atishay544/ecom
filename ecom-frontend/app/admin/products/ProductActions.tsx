@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 interface Props {
   productId: string
@@ -15,6 +16,7 @@ export default function ProductActions({ productId, isActive, productName }: Pro
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,7 +36,6 @@ export default function ProductActions({ productId, isActive, productName }: Pro
   }
 
   async function handleDelete() {
-    if (!confirm(`Delete "${productName}"? This cannot be undone.`)) return
     setBusy(true)
     setError('')
     const { error: err } = await supabase
@@ -42,6 +43,8 @@ export default function ProductActions({ productId, isActive, productName }: Pro
       .delete()
       .eq('id', productId)
     setBusy(false)
+    setBusy(false)
+    setShowConfirm(false)
     if (err) { setError(err.message); return }
     router.refresh()
   }
@@ -67,7 +70,7 @@ export default function ProductActions({ productId, isActive, productName }: Pro
           {busy ? '…' : isActive ? 'Deactivate' : 'Activate'}
         </button>
         <button
-          onClick={handleDelete}
+          onClick={() => setShowConfirm(true)}
           disabled={busy}
           className="text-xs text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition-colors disabled:opacity-40"
         >
@@ -76,6 +79,14 @@ export default function ProductActions({ productId, isActive, productName }: Pro
       </div>
       {error && (
         <p className="text-[11px] text-red-500 max-w-[200px] text-right">{error}</p>
+      )}
+      {showConfirm && (
+        <ConfirmModal
+          message={`Delete "${productName}"? This cannot be undone.`}
+          onConfirm={handleDelete}
+          onCancel={() => setShowConfirm(false)}
+          loading={busy}
+        />
       )}
     </div>
   )

@@ -12,7 +12,7 @@ export const revalidate = 60
 const getStaticHomeData = unstable_cache(
   async () => {
     const supabase = createPublicClient()
-    const [{ data: banners }, { data: categories }] = await Promise.all([
+    const [{ data: bannersRaw }, { data: categoriesRaw }] = await Promise.all([
       supabase
         .from('banners')
         .select('id,title,subtitle,image_url,link_url,link_text,bg_color,text_color,sort_order,display_style')
@@ -25,7 +25,11 @@ const getStaticHomeData = unstable_cache(
         .order('sort_order')
         .limit(6),
     ])
-    return { banners: banners ?? [], categories: categories ?? [] }
+    type Banner = { id: string; title: string | null; subtitle: string | null; image_url: string | null; link_url: string | null; link_text: string | null; bg_color: string | null; text_color: string | null; sort_order: number | null; display_style: string | null }
+    type Category = { id: string; name: string; slug: string; image_url: string | null }
+    const banners = (bannersRaw ?? []) as Banner[]
+    const categories = (categoriesRaw ?? []) as Category[]
+    return { banners, categories }
   },
   ['home-static'],
   { revalidate: 60, tags: ['banners', 'categories'] }

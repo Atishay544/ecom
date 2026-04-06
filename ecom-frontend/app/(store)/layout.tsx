@@ -10,7 +10,7 @@ const getLayoutData = unstable_cache(
   async () => {
     const supabase = createPublicClient()
     const now = new Date().toISOString()
-    const [{ data: announcements }, { data: categories }] = await Promise.all([
+    const [{ data: announcements }, { data: categoriesRaw }] = await Promise.all([
       supabase
         .from('announcements')
         .select('id,message,bg_color,text_color,link_url,link_text,is_active')
@@ -24,7 +24,8 @@ const getLayoutData = unstable_cache(
         .select('id,name,slug,parent_id,sort_order')
         .order('sort_order'),
     ])
-    return { announcement: announcements?.[0] ?? null, categories: categories ?? [] }
+    const categories = (categoriesRaw ?? []) as { id: string; name: string; slug: string; parent_id: string | null; sort_order: number | null }[]
+    return { announcement: announcements?.[0] ?? null, categories }
   },
   ['layout-data'],
   { revalidate: 60 }

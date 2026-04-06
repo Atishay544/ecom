@@ -67,10 +67,11 @@ export default function HeroCarousel({ banners }: { banners: Banner[] }) {
 
   const slide = banners[current]
 
+  const ease = [0.22, 1, 0.36, 1] as [number, number, number, number]
   const variants = {
     enter: (d: number) => ({ x: d > 0 ? '100%' : '-100%', opacity: 0 }),
-    center: { x: 0, opacity: 1, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
-    exit:   (d: number) => ({ x: d > 0 ? '-100%' : '100%', opacity: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }),
+    center: { x: 0, opacity: 1, transition: { duration: 0.55, ease } },
+    exit:   (d: number) => ({ x: d > 0 ? '-100%' : '100%', opacity: 0, transition: { duration: 0.45, ease } }),
   }
 
   return (

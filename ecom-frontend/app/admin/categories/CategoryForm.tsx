@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserClient } from '@supabase/ssr'
 
 interface Category { id: string; name: string }
 interface Props { categories: Category[] }
@@ -13,10 +12,6 @@ function slugify(str: string) {
 
 export default function CategoryForm({ categories }: Props) {
   const router = useRouter()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
 
   const [name, setName]         = useState('')
   const [slug, setSlug]         = useState('')
@@ -34,22 +29,27 @@ export default function CategoryForm({ categories }: Props) {
     e.preventDefault()
     setError('')
     setSaving(true)
-    const { error: err } = await supabase.from('categories').insert({
-      name: name.trim(),
-      slug: slug.trim(),
-      parent_id: parentId || null,
-      sort_order: parseInt(sortOrder, 10) || 0,
+    const res = await fetch('/api/admin/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:       name.trim(),
+        slug:       slug.trim(),
+        parent_id:  parentId || null,
+        sort_order: parseInt(sortOrder, 10) || 0,
+      }),
     })
     setSaving(false)
-    if (err) {
-      setError(err.message)
-    } else {
-      setName('')
-      setSlug('')
-      setParentId('')
-      setSort('0')
-      router.refresh()
+    if (!res.ok) {
+      const j = await res.json()
+      setError(j.error ?? 'Failed to create category')
+      return
     }
+    setName('')
+    setSlug('')
+    setParentId('')
+    setSort('0')
+    router.refresh()
   }
 
   return (

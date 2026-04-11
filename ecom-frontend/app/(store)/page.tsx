@@ -4,10 +4,9 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import Image from 'next/image'
 import { formatPrice } from '@/lib/utils'
+import { AnimatedGrid, AnimatedItem } from './AnimatedSectionDynamic'
 
-const HeroCarousel   = dynamic(() => import('./HeroCarousel'), { ssr: true })
-const AnimatedGrid   = dynamic(() => import('./AnimatedSection').then(m => ({ default: m.AnimatedGrid })), { ssr: false, loading: () => <div /> })
-const AnimatedItem   = dynamic(() => import('./AnimatedSection').then(m => ({ default: m.AnimatedItem })), { ssr: false, loading: () => <div /> })
+const HeroCarousel = dynamic(() => import('./HeroCarousel'), { ssr: true })
 
 export const revalidate = 600
 

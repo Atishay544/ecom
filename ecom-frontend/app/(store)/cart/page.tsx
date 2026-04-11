@@ -71,7 +71,7 @@ export default function CartPage() {
           <div className="space-y-2 text-sm mb-4">
             <div className="flex justify-between">
               <span className="text-gray-600">Subtotal</span>
-              <span>{formatPrice(total(), 'USD')}</span>
+              <span>{formatPrice(total())}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Shipping</span>
@@ -80,9 +80,9 @@ export default function CartPage() {
           </div>
           <div className="border-t pt-3 flex justify-between font-bold text-base mb-5">
             <span>Total</span>
-            <span>{formatPrice(total(), 'USD')}</span>
+            <span>{formatPrice(total())}</span>
           </div>
-          <Link href="/checkout"
+          <Link href="/checkout" prefetch={false}
             className="block w-full bg-black text-white text-center py-3.5 rounded-xl font-semibold hover:bg-gray-800 transition">
             Proceed to Checkout
           </Link>

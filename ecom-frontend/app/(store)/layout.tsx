@@ -32,7 +32,7 @@ const getLayoutData = unstable_cache(
     return { announcement: announcements?.[0] ?? null, categories }
   },
   ['layout-data'],
-  { revalidate: 60, tags: ['announcements', 'categories'] }
+  { revalidate: 3600, tags: ['announcements', 'categories'] }
 )
 
 export default async function StoreLayout({ children }: { children: React.ReactNode }) {

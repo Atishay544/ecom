@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { formatPrice } from '@/lib/utils'
 
-export const revalidate = 60
+export const revalidate = 3600
 export const dynamicParams = true
 
 interface Props {
@@ -69,7 +69,7 @@ const getCategoryProducts = unstable_cache(
     return { products: products ?? [], count: count ?? 0 }
   },
   ['category-products'],
-  { revalidate: 60, tags: ['categories', 'products'] }
+  { revalidate: 3600, tags: ['categories', 'products'] }
 )
 
 export default async function CategoryPage({ params, searchParams }: Props) {

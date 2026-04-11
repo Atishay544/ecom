@@ -14,7 +14,7 @@ import ReviewForm from './ReviewForm'
 import RecommendedProducts from './RecommendedProducts'
 import ProductOffers from './ProductOffers'
 
-export const revalidate = 60
+export const revalidate = 3600 // 1h — on-demand invalidation via revalidateTag handles updates
 export const dynamicParams = true
 
 // Pre-render ALL active products at build time — no limit
@@ -46,7 +46,7 @@ const getProductBySlug = unstable_cache(
     return data
   },
   ['product-by-slug'],
-  { revalidate: 60, tags: ['products'] }
+  { revalidate: 3600, tags: ['products'] }
 )
 
 // Deduplicates within one request (generateMetadata + page)
@@ -68,7 +68,7 @@ const getProductVariants = unstable_cache(
     }))
   },
   ['product-variants'],
-  { revalidate: 60, tags: ['products'] }
+  { revalidate: 3600, tags: ['products'] }
 )
 
 const getOffers = unstable_cache(
@@ -83,7 +83,7 @@ const getOffers = unstable_cache(
     return data ?? []
   },
   ['offers-list'],
-  { revalidate: 300, tags: ['offers'] }
+  { revalidate: 3600, tags: ['offers'] }
 )
 
 // ── Streamed fetchers (behind Suspense) ──────────────────────────────────────
@@ -100,7 +100,7 @@ const getProductReviews = unstable_cache(
     return data ?? []
   },
   ['product-reviews'],
-  { revalidate: 60, tags: ['reviews'] }
+  { revalidate: 3600, tags: ['reviews'] }
 )
 
 const getRecommendedProducts = unstable_cache(
@@ -128,7 +128,7 @@ const getRecommendedProducts = unstable_cache(
     return fallback ?? []
   },
   ['recommended-products'],
-  { revalidate: 60, tags: ['products'] }
+  { revalidate: 3600, tags: ['products'] }
 )
 
 // ── Async streaming sub-components ──────────────────────────────────────────

@@ -9,7 +9,7 @@ const HeroCarousel   = dynamic(() => import('./HeroCarousel'), { ssr: true })
 const AnimatedGrid   = dynamic(() => import('./AnimatedSection').then(m => ({ default: m.AnimatedGrid })), { ssr: false, loading: () => <div /> })
 const AnimatedItem   = dynamic(() => import('./AnimatedSection').then(m => ({ default: m.AnimatedItem })), { ssr: false, loading: () => <div /> })
 
-export const revalidate = 60
+export const revalidate = 600
 
 const getStaticHomeData = unstable_cache(
   async () => {
@@ -37,7 +37,7 @@ const getStaticHomeData = unstable_cache(
     return { banners, categories }
   },
   ['home-static'],
-  { revalidate: 60, tags: ['banners', 'categories'] }
+  { revalidate: 600, tags: ['banners', 'categories'] }
 )
 
 type HomeProduct = { id: string; name: string; slug: string; price: number; compare_price: number | null; images: string[] | null }
@@ -66,7 +66,7 @@ const getDynamicHomeProducts = unstable_cache(
     return { featured: featured ?? [], deals: deals ?? [] }
   },
   ['home-products'],
-  { revalidate: 60, tags: ['products'] }
+  { revalidate: 600, tags: ['products'] }
 )
 
 export default async function HomePage() {

@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import { cache } from 'react'
+import { Suspense } from 'react'
 import { createPublicClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -16,7 +17,7 @@ import ProductOffers from './ProductOffers'
 export const revalidate = 60
 export const dynamicParams = true
 
-// Pre-render the first 50 products at build time for instant load
+// Pre-render ALL active products at build time — no limit
 export async function generateStaticParams() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return []
   const supabase = createPublicClient()
@@ -25,13 +26,13 @@ export async function generateStaticParams() {
     .select('slug')
     .eq('is_active', true)
     .order('created_at', { ascending: false })
-    .limit(50)
   return (data ?? []).map(p => ({ slug: p.slug }))
 }
 
 interface Props { params: Promise<{ slug: string }> }
 
-// ISR cache for product core data — busted when products tag is invalidated
+// ── Cached data fetchers ─────────────────────────────────────────────────────
+
 const getProductBySlug = unstable_cache(
   async (slug: string) => {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return null
@@ -48,10 +49,28 @@ const getProductBySlug = unstable_cache(
   { revalidate: 60, tags: ['products'] }
 )
 
-// React cache() deduplicates within one request (generateMetadata + page)
+// Deduplicates within one request (generateMetadata + page)
 const getProduct = cache(getProductBySlug)
 
-// Cache offers — busted when offers tag is invalidated
+// Only what's needed above the fold — fast parallel fetch
+const getProductVariants = unstable_cache(
+  async (productId: string) => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return []
+    const supabase = createPublicClient()
+    const { data } = await supabase
+      .from('product_variants')
+      .select('id, name, options')
+      .eq('product_id', productId)
+    return (data ?? []).map((v: any) => ({
+      id: v.id,
+      name: v.name,
+      options: Array.isArray(v.options) ? v.options : [],
+    }))
+  },
+  ['product-variants'],
+  { revalidate: 60, tags: ['products'] }
+)
+
 const getOffers = unstable_cache(
   async () => {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return []
@@ -67,57 +86,89 @@ const getOffers = unstable_cache(
   { revalidate: 300, tags: ['offers'] }
 )
 
-// Cache reviews, variants, recommended — busted independently
-const getProductSupportData = unstable_cache(
-  async (productId: string, categoryId: string | null) => {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return { reviews: [], variants: [], recommended: [] }
+// ── Streamed fetchers (behind Suspense) ──────────────────────────────────────
+
+const getProductReviews = unstable_cache(
+  async (productId: string) => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return []
     const supabase = createPublicClient()
-
-    const [{ data: reviewRows }, { data: variantRows }, { data: recommendedRaw }] = await Promise.all([
-      supabase
-        .from('reviews')
-        .select('id, rating, comment, created_at, is_verified_purchase, profiles(full_name)')
-        .eq('product_id', productId)
-        .eq('is_approved', true),
-      supabase
-        .from('product_variants')
-        .select('id, name, options')
-        .eq('product_id', productId),
-      supabase
-        .from('products')
-        .select('id, name, slug, price, compare_price, images')
-        .eq('is_active', true)
-        .eq('category_id', categoryId ?? '')
-        .neq('id', productId)
-        .order('created_at', { ascending: false })
-        .limit(10),
-    ])
-
-    // Fill with latest products if not enough from same category
-    const recommended = recommendedRaw && recommendedRaw.length >= 4
-      ? recommendedRaw
-      : await supabase
-          .from('products')
-          .select('id, name, slug, price, compare_price, images')
-          .eq('is_active', true)
-          .neq('id', productId)
-          .order('created_at', { ascending: false })
-          .limit(10)
-          .then(r => r.data ?? [])
-
-    return {
-      reviews: reviewRows ?? [],
-      variants: (variantRows ?? []).map((v: any) => ({
-        id: v.id,
-        name: v.name,
-        options: Array.isArray(v.options) ? v.options : [],
-      })),
-      recommended: recommended ?? [],
-    }
+    const { data } = await supabase
+      .from('reviews')
+      .select('id, rating, comment, created_at, is_verified_purchase, profiles(full_name)')
+      .eq('product_id', productId)
+      .eq('is_approved', true)
+    return data ?? []
   },
-  ['product-support-data'],
-  { revalidate: 60, tags: ['reviews', 'products'] }
+  ['product-reviews'],
+  { revalidate: 60, tags: ['reviews'] }
 )
+
+const getRecommendedProducts = unstable_cache(
+  async (productId: string, categoryId: string | null) => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return []
+    const supabase = createPublicClient()
+    const { data: fromCategory } = await supabase
+      .from('products')
+      .select('id, name, slug, price, compare_price, images')
+      .eq('is_active', true)
+      .eq('category_id', categoryId ?? '')
+      .neq('id', productId)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    if (fromCategory && fromCategory.length >= 4) return fromCategory
+
+    const { data: fallback } = await supabase
+      .from('products')
+      .select('id, name, slug, price, compare_price, images')
+      .eq('is_active', true)
+      .neq('id', productId)
+      .order('created_at', { ascending: false })
+      .limit(10)
+    return fallback ?? []
+  },
+  ['recommended-products'],
+  { revalidate: 60, tags: ['products'] }
+)
+
+// ── Async streaming sub-components ──────────────────────────────────────────
+
+async function ReviewsSection({ productId }: { productId: string }) {
+  const reviews = await getProductReviews(productId)
+  const avgRating = reviews.length
+    ? reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length
+    : 0
+
+  return (
+    <div className="mt-16 border-t border-gray-100 pt-10">
+      <div className="flex items-center gap-4 mb-6">
+        <h2 className="text-xl font-bold text-gray-900">Customer Reviews</h2>
+        {reviews.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <div className="flex">
+              {[1, 2, 3, 4, 5].map(s => (
+                <Star key={s} size={15}
+                  className={s <= Math.round(avgRating) ? 'fill-amber-400 text-amber-400' : 'text-gray-200'} />
+              ))}
+            </div>
+            <span className="text-sm text-gray-500">{avgRating.toFixed(1)} ({reviews.length})</span>
+          </div>
+        )}
+      </div>
+      {reviews.length > 0
+        ? <ReviewsList reviews={reviews} />
+        : <p className="text-sm text-gray-400 mb-8">No reviews yet. Be the first!</p>}
+      <ReviewForm productId={productId} />
+    </div>
+  )
+}
+
+async function RecommendedSection({ productId, categoryId }: { productId: string; categoryId: string | null }) {
+  const products = await getRecommendedProducts(productId, categoryId)
+  return <RecommendedProducts products={products as any[]} />
+}
+
+// ── Metadata ─────────────────────────────────────────────────────────────────
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params
@@ -126,23 +177,22 @@ export async function generateMetadata({ params }: Props) {
   return { title: product.name, description: product.description?.slice(0, 160) }
 }
 
+// ── Page ─────────────────────────────────────────────────────────────────────
+
 export default async function ProductDetailPage({ params }: Props) {
   const { slug } = await params
   const product = await getProduct(slug)
 
   if (!product || product.is_active === false) notFound()
 
-  const [{ reviews, variants, recommended }, offers] = await Promise.all([
-    getProductSupportData(product.id, product.category_id ?? null),
+  // Only what's needed to render above-the-fold — fast parallel fetch
+  const [variants, offers] = await Promise.all([
+    getProductVariants(product.id),
     getOffers(),
   ])
 
   const discount = product.compare_price
     ? Math.round((1 - product.price / product.compare_price) * 100)
-    : 0
-
-  const avgRating = reviews.length
-    ? reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length
     : 0
 
   const images: string[] = product.images ?? []
@@ -168,10 +218,9 @@ export default async function ProductDetailPage({ params }: Props) {
               '@type': 'Offer',
               price: product.price,
               priceCurrency: 'INR',
-              availability:
-                product.stock > 0
-                  ? 'https://schema.org/InStock'
-                  : 'https://schema.org/OutOfStock',
+              availability: product.stock > 0
+                ? 'https://schema.org/InStock'
+                : 'https://schema.org/OutOfStock',
             },
           }),
         }}
@@ -201,79 +250,46 @@ export default async function ProductDetailPage({ params }: Props) {
         {/* ── RIGHT: Product Info ── */}
         <div className="flex flex-col gap-5">
 
-          {/* Category label */}
           {product.categories && (
-            <Link
-              href={`/category/${product.categories.slug}`}
-              className="text-xs font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-700 transition"
-            >
+            <Link href={`/category/${product.categories.slug}`}
+              className="text-xs font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-700 transition">
               {product.categories.name}
             </Link>
           )}
 
-          {/* Name */}
           <h1 className="text-2xl lg:text-3xl font-bold leading-snug text-gray-900">
             {product.name}
           </h1>
 
-          {/* Rating row */}
-          {reviews.length > 0 && (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded">
-                <span>{avgRating.toFixed(1)}</span>
-                <Star size={10} className="fill-white" />
-              </div>
-              <span className="text-sm text-gray-500">
-                {reviews.length} {reviews.length === 1 ? 'rating' : 'ratings'}
-              </span>
-            </div>
-          )}
-
           {/* Price block */}
           <div>
             <div className="flex items-baseline gap-3 flex-wrap">
-              <span className="text-3xl font-extrabold text-gray-900">
-                {formatPrice(product.price)}
-              </span>
+              <span className="text-3xl font-extrabold text-gray-900">{formatPrice(product.price)}</span>
               {product.compare_price && (
                 <>
-                  <span className="text-lg text-gray-400 line-through">
-                    {formatPrice(product.compare_price)}
-                  </span>
-                  <span className="text-base font-bold text-green-600">
-                    {discount}% OFF
-                  </span>
+                  <span className="text-lg text-gray-400 line-through">{formatPrice(product.compare_price)}</span>
+                  <span className="text-base font-bold text-green-600">{discount}% OFF</span>
                 </>
               )}
             </div>
             {savings > 0 && (
-              <p className="text-sm text-green-600 font-medium mt-1">
-                You save {formatPrice(savings)}
-              </p>
+              <p className="text-sm text-green-600 font-medium mt-1">You save {formatPrice(savings)}</p>
             )}
             <p className="text-xs text-gray-400 mt-1">inclusive of all taxes</p>
           </div>
 
           {/* Stock */}
           <div className="flex items-center gap-2">
-            <span
-              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                product.stock === 0
-                  ? 'bg-red-50 text-red-600'
-                  : product.stock < 10
-                  ? 'bg-amber-50 text-amber-700'
-                  : 'bg-green-50 text-green-700'
-              }`}
-            >
-              {product.stock === 0
-                ? 'Out of Stock'
-                : product.stock < 10
-                ? `Only ${product.stock} left!`
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+              product.stock === 0 ? 'bg-red-50 text-red-600'
+              : product.stock < 10 ? 'bg-amber-50 text-amber-700'
+              : 'bg-green-50 text-green-700'
+            }`}>
+              {product.stock === 0 ? 'Out of Stock'
+                : product.stock < 10 ? `Only ${product.stock} left!`
                 : 'In Stock'}
             </span>
-            {product.sku && (
-              <span className="text-xs text-gray-400">SKU: {product.sku}</span>
-            )}
+            {product.sku && <span className="text-xs text-gray-400">SKU: {product.sku}</span>}
           </div>
 
           {/* Variants */}
@@ -290,15 +306,13 @@ export default async function ProductDetailPage({ params }: Props) {
 
           {/* Add to Cart */}
           <div className="border-t border-gray-100 pt-5">
-            <AddToCartButton
-              product={{
-                id: product.id,
-                name: product.name,
-                price: product.price,
-                image: images[0] ?? null,
-                stock: product.stock,
-              }}
-            />
+            <AddToCartButton product={{
+              id: product.id,
+              name: product.name,
+              price: product.price,
+              image: images[0] ?? null,
+              stock: product.stock,
+            }} />
           </div>
 
           {/* Trust badges */}
@@ -329,43 +343,29 @@ export default async function ProductDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Reviews */}
-      <div className="mt-16 border-t border-gray-100 pt-10">
-        <div className="flex items-center gap-4 mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Customer Reviews</h2>
-          {reviews.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <div className="flex">
-                {[1, 2, 3, 4, 5].map(s => (
-                  <Star
-                    key={s}
-                    size={15}
-                    className={
-                      s <= Math.round(avgRating)
-                        ? 'fill-amber-400 text-amber-400'
-                        : 'text-gray-200'
-                    }
-                  />
-                ))}
-              </div>
-              <span className="text-sm text-gray-500">
-                {avgRating.toFixed(1)} ({reviews.length})
-              </span>
-            </div>
-          )}
+      {/* Reviews — streamed after above-the-fold */}
+      <Suspense fallback={
+        <div className="mt-16 border-t border-gray-100 pt-10">
+          <div className="h-7 w-48 bg-gray-100 rounded animate-pulse mb-6" />
+          <div className="space-y-4">
+            {[1, 2].map(i => <div key={i} className="h-20 bg-gray-50 rounded-xl animate-pulse" />)}
+          </div>
         </div>
+      }>
+        <ReviewsSection productId={product.id} />
+      </Suspense>
 
-        {reviews.length > 0 ? (
-          <ReviewsList reviews={reviews} />
-        ) : (
-          <p className="text-sm text-gray-400 mb-8">No reviews yet. Be the first!</p>
-        )}
-
-        {product.id && <ReviewForm productId={product.id} />}
-      </div>
-
-      {/* Recommended Products */}
-      <RecommendedProducts products={recommended as any[]} />
+      {/* Recommended — streamed after above-the-fold */}
+      <Suspense fallback={
+        <div className="mt-16">
+          <div className="h-7 w-56 bg-gray-100 rounded animate-pulse mb-6" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => <div key={i} className="aspect-square bg-gray-100 rounded-xl animate-pulse" />)}
+          </div>
+        </div>
+      }>
+        <RecommendedSection productId={product.id} categoryId={product.category_id ?? null} />
+      </Suspense>
     </div>
   )
 }

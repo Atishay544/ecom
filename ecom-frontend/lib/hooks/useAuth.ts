@@ -9,32 +9,38 @@ export function useAuth() {
   const [role, setRole] = useState<string>('customer')
   const [loading, setLoading] = useState(true)
 
-  // Read role from the profiles table safely — catch 500 from circular RLS
-  async function fetchRole(userId: string) {
+  // Read role from JWT claims first — no DB round-trip.
+  // Falls back to profiles table only if JWT doesn't carry the role.
+  async function resolveRole(u: User) {
+    const jwtRole = u.app_metadata?.role ?? (u as any).user_metadata?.role
+    if (jwtRole) { setRole(jwtRole); return }
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', userId)
+        .eq('id', u.id)
         .single()
       if (!error && data?.role) setRole(data.role)
     } catch {
-      // Silently fall back to 'customer' — admin check is server-side anyway
+      // Silently fall back to 'customer'
     }
   }
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user ?? null)
-      if (data.user) fetchRole(data.user.id)
+      const u = data.user ?? null
+      setUser(u)
+      if (u) resolveRole(u)
       setLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) fetchRole(session.user.id)
+      const u = session?.user ?? null
+      setUser(u)
+      if (u) resolveRole(u)
       else setRole('customer')
     })
     return () => subscription.unsubscribe()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function signOut() {

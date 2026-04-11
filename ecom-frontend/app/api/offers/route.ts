@@ -8,5 +8,7 @@ export async function GET() {
     .select('id, title, description, type, upfront_pct, discount_pct, sort_order')
     .eq('is_active', true)
     .order('sort_order')
-  return NextResponse.json({ data: data ?? [] })
+  return NextResponse.json({ data: data ?? [] }, {
+    headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' }
+  })
 }

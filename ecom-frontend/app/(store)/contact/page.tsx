@@ -1,3 +1,5 @@
+export const revalidate = 86400
+
 import type { Metadata } from 'next'
 import ContactForm from './ContactForm'
 import Link from 'next/link'

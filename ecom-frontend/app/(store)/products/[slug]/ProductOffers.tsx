@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { formatPrice } from '@/lib/utils'
 import { Tag, ChevronDown, ChevronUp } from 'lucide-react'
 
@@ -13,20 +13,15 @@ interface Offer {
   discount_pct: number | null
 }
 
-interface Props { price: number }
+interface Props { price: number; initialOffers: Offer[] }
 
-export default function ProductOffers({ price }: Props) {
-  const [offers, setOffers]           = useState<Offer[]>([])
-  const [expanded, setExpanded]       = useState(false)
-  const [checkedId, setCheckedId]     = useState<string | null>(null)
+export default function ProductOffers({ price, initialOffers }: Props) {
+  const [expanded, setExpanded]   = useState(false)
+  const [checkedId, setCheckedId] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetch('/api/offers').then(r => r.json()).then(j => setOffers(j.data ?? []))
-  }, [])
+  if (!initialOffers.length) return null
 
-  if (!offers.length) return null
-
-  const selectedOffer = offers.find(o => o.id === checkedId)
+  const offers = initialOffers
 
   // Calculate COD upfront offer breakdown
   function calcBreakdown(offer: Offer) {

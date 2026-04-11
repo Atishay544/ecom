@@ -21,6 +21,7 @@ export default async function OrdersPage() {
     .select('id,created_at,status,total_amount,order_items(count)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
+    .range(0, 19)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">

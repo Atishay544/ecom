@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
 
@@ -75,5 +76,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  revalidateTag('reviews')
   return NextResponse.json({ success: true })
 }

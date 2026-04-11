@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
 
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest) {
   }).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  revalidateTag('categories')
   return NextResponse.json({ data })
 }
 
@@ -44,5 +46,7 @@ export async function DELETE(req: NextRequest) {
 
   const { error } = await admin.from('categories').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  revalidateTag('categories')
+  revalidateTag('products')
   return NextResponse.json({ success: true })
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
 
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
     sort_order: body.sort_order ? Number(body.sort_order) : 0,
   }).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  revalidateTag('offers')
   return NextResponse.json({ data })
 }
 
@@ -44,6 +46,7 @@ export async function PATCH(req: NextRequest) {
   const { id, ...fields } = body
   const { error } = await admin.from('offers').update(fields).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  revalidateTag('offers')
   return NextResponse.json({ success: true })
 }
 
@@ -53,5 +56,6 @@ export async function DELETE(req: NextRequest) {
   const { id } = await req.json()
   const { error } = await admin.from('offers').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  revalidateTag('offers')
   return NextResponse.json({ success: true })
 }

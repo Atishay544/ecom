@@ -1,4 +1,5 @@
-import { createServerClient } from '@/lib/supabase/server'
+import { unstable_cache } from 'next/cache'
+import { createPublicClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Suspense } from 'react'
@@ -14,48 +15,60 @@ export const metadata = {
   description: 'Browse our full collection of products. Filter by category, price and more.',
 }
 
-interface Props {
-  searchParams: Promise<{
-    category?: string
-    sort?: string
-    min?: string
-    max?: string
-    sale?: string
-    page?: string
-  }>
+interface FilterParams {
+  category?: string
+  sort?: string
+  min?: string
+  max?: string
+  sale?: string
+  page?: string
 }
+
+interface Props { searchParams: Promise<FilterParams> }
 
 const PAGE_SIZE = 20
 
+const getProductsPage = unstable_cache(
+  async (params: FilterParams) => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return { products: [], count: 0, categories: [] }
+    const supabase = createPublicClient()
+    const page = Math.max(1, parseInt(params.page ?? '1'))
+    const offset = (page - 1) * PAGE_SIZE
+    const sort = params.sort ?? 'newest'
+
+    let query = supabase
+      .from('products')
+      .select('id,name,slug,price,compare_price,images,categories(name,slug)', { count: 'exact' })
+      .eq('is_active', true)
+      .range(offset, offset + PAGE_SIZE - 1)
+
+    if (params.category) query = query.eq('category_id', params.category)
+    if (params.sale === 'true') query = query.not('compare_price', 'is', null)
+    if (params.min) query = query.gte('price', parseFloat(params.min))
+    if (params.max) query = query.lte('price', parseFloat(params.max))
+
+    if (sort === 'newest')           query = query.order('created_at', { ascending: false })
+    else if (sort === 'price_asc')   query = query.order('price', { ascending: true })
+    else if (sort === 'price_desc')  query = query.order('price', { ascending: false })
+    else if (sort === 'popular')     query = query.order('stock', { ascending: false })
+
+    const [{ data: products, count }, { data: categories }] = await Promise.all([
+      query,
+      supabase.from('categories').select('id,name,slug').is('parent_id', null).order('sort_order'),
+    ])
+
+    return { products: products ?? [], count: count ?? 0, categories: categories ?? [] }
+  },
+  ['products-page'],
+  { revalidate: 30, tags: ['products', 'categories'] }
+)
+
 export default async function ProductsPage({ searchParams }: Props) {
   const params = await searchParams
+  const { products, count, categories } = await getProductsPage(params)
   const page = Math.max(1, parseInt(params.page ?? '1'))
-  const offset = (page - 1) * PAGE_SIZE
-
-  const supabase = await createServerClient()
-
-  let query = supabase
-    .from('products')
-    .select('id,name,slug,price,compare_price,images,categories(name,slug)', { count: 'exact' })
-    .eq('is_active', true)
-    .range(offset, offset + PAGE_SIZE - 1)
-
-  if (params.category) query = query.eq('category_id', params.category)
-  if (params.sale === 'true') query = query.not('compare_price', 'is', null)
-  if (params.min) query = query.gte('price', parseFloat(params.min))
-  if (params.max) query = query.lte('price', parseFloat(params.max))
-
+  const totalPages = Math.ceil(count / PAGE_SIZE)
   const sort = params.sort ?? 'newest'
-  if (sort === 'newest')       query = query.order('created_at', { ascending: false })
-  else if (sort === 'price_asc')  query = query.order('price', { ascending: true })
-  else if (sort === 'price_desc') query = query.order('price', { ascending: false })
-  else if (sort === 'popular')    query = query.order('stock', { ascending: false })
-
-  const { data: products, count } = await query
-  const { data: categories } = await supabase
-    .from('categories').select('id,name,slug').is('parent_id', null).order('sort_order')
-
-  const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
 
   return (
     <div className="max-w-350 mx-auto px-4 sm:px-6 lg:px-10 py-10">
@@ -64,13 +77,13 @@ export default async function ProductsPage({ searchParams }: Props) {
       <div className="flex gap-6">
         {/* Sidebar filters */}
         <aside className="hidden lg:block w-56 shrink-0">
-          <ProductFilters categories={categories ?? []} currentParams={params} />
+          <ProductFilters categories={categories} currentParams={params} />
         </aside>
 
         <div className="flex-1">
           {/* Toolbar */}
           <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-            <p className="text-sm text-gray-500">{count ?? 0} products</p>
+            <p className="text-sm text-gray-500">{count} products</p>
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Sort:</span>
               <SortSelect current={sort} />
@@ -79,9 +92,9 @@ export default async function ProductsPage({ searchParams }: Props) {
 
           {/* Grid */}
           <Suspense fallback={<ProductSkeletonGrid />}>
-            {products && products.length > 0 ? (
+            {products.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                {products.map(p => <ProductCard key={p.id} product={p} />)}
+                {products.map((p: any) => <ProductCard key={p.id} product={p} />)}
               </div>
             ) : (
               <div className="text-center py-24 text-gray-400">
@@ -114,7 +127,11 @@ function ProductCard({ product }: { product: any }) {
     <Link href={`/products/${product.slug}`} className="group">
       <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-3 relative">
         {image
-          ? <Image src={image} alt={product.name} fill className="object-cover group-hover:scale-105 transition" />
+          ? <Image src={image} alt={product.name} fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-cover group-hover:scale-105 transition"
+              placeholder="blur"
+              blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" />
           : <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">📦</div>
         }
         {discount > 0 && (
@@ -133,7 +150,6 @@ function ProductCard({ product }: { product: any }) {
     </Link>
   )
 }
-
 
 function PaginationLink({ page, current, params }: { page: number; current: number; params: Record<string, string | undefined> }) {
   const sp = new URLSearchParams()

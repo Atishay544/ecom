@@ -1,9 +1,11 @@
 import { unstable_cache } from 'next/cache'
 import { createPublicClient } from '@/lib/supabase/admin'
+import dynamic from 'next/dynamic'
 import Header from '@/components/storefront/Header'
 import Footer from '@/components/storefront/Footer'
 import AnnouncementBar from '@/components/storefront/AnnouncementBar'
-import ChatWidget from '@/components/chat/ChatWidget'
+
+const ChatWidget = dynamic(() => import('@/components/chat/ChatWidget'), { ssr: false, loading: () => null })
 
 // Cached for 60s — categories/announcements rarely change
 const getLayoutData = unstable_cache(
@@ -32,7 +34,7 @@ const getLayoutData = unstable_cache(
     return { announcement: announcements?.[0] ?? null, categories }
   },
   ['layout-data'],
-  { revalidate: 60 }
+  { revalidate: 60, tags: ['announcements', 'categories'] }
 )
 
 export default async function StoreLayout({ children }: { children: React.ReactNode }) {

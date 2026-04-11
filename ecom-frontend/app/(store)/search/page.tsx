@@ -1,4 +1,5 @@
-import { createServerClient } from '@/lib/supabase/server'
+import { unstable_cache } from 'next/cache'
+import { createPublicClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
 import Image from 'next/image'
 import { formatPrice } from '@/lib/utils'
@@ -15,16 +16,10 @@ export async function generateMetadata({ searchParams }: Props) {
   }
 }
 
-export default async function SearchPage({ searchParams }: Props) {
-  const { q = '' } = await searchParams
-  const term = q.trim()
-
-  let products: any[] = []
-  let categories: any[] = []
-
-  if (term.length >= 2) {
-    const supabase = await createServerClient()
-
+const getSearchResults = unstable_cache(
+  async (term: string) => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return { products: [], categories: [] }
+    const supabase = createPublicClient()
     const [{ data: prods }, { data: cats }] = await Promise.all([
       supabase
         .from('products')
@@ -38,9 +33,23 @@ export default async function SearchPage({ searchParams }: Props) {
         .ilike('name', `%${term}%`)
         .limit(6),
     ])
+    return { products: prods ?? [], categories: cats ?? [] }
+  },
+  ['search-results'],
+  { revalidate: 120, tags: ['products', 'categories'] }
+)
 
-    products = prods ?? []
-    categories = cats ?? []
+export default async function SearchPage({ searchParams }: Props) {
+  const { q = '' } = await searchParams
+  const term = q.trim()
+
+  let products: any[] = []
+  let categories: any[] = []
+
+  if (term.length >= 2) {
+    const results = await getSearchResults(term)
+    products = results.products
+    categories = results.categories
   }
 
   return (
@@ -68,7 +77,7 @@ export default async function SearchPage({ searchParams }: Props) {
         <section className="mb-8">
           <h2 className="text-lg font-semibold mb-4">Categories</h2>
           <div className="flex flex-wrap gap-3">
-            {categories.map(c => (
+            {categories.map((c: any) => (
               <Link key={c.id} href={`/category/${c.slug}`}
                 className="flex items-center gap-2 border border-gray-200 rounded-full px-4 py-2 text-sm hover:border-black transition">
                 {c.image_url && (
@@ -87,13 +96,17 @@ export default async function SearchPage({ searchParams }: Props) {
             Products <span className="text-gray-400 font-normal text-sm">({products.length})</span>
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {products.map(p => {
+            {products.map((p: any) => {
               const discount = p.compare_price ? Math.round((1 - p.price / p.compare_price) * 100) : 0
               return (
                 <Link key={p.id} href={`/products/${p.slug}`} className="group">
                   <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-2 relative">
                     {p.images?.[0]
-                      ? <Image src={p.images[0]} alt={p.name} fill className="object-cover group-hover:scale-105 transition" />
+                      ? <Image src={p.images[0]} alt={p.name} fill
+                          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                          className="object-cover group-hover:scale-105 transition"
+                          placeholder="blur"
+                          blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" />
                       : <div className="w-full h-full flex items-center justify-center text-4xl text-gray-300">📦</div>}
                     {discount > 0 && (
                       <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">

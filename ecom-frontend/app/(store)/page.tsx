@@ -1,11 +1,13 @@
-import { createServerClient } from '@/lib/supabase/server'
 import { createPublicClient } from '@/lib/supabase/admin'
 import { unstable_cache } from 'next/cache'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import Image from 'next/image'
 import { formatPrice } from '@/lib/utils'
-import HeroCarousel from './HeroCarousel'
-import { AnimatedGrid, AnimatedItem } from './AnimatedSection'
+
+const HeroCarousel   = dynamic(() => import('./HeroCarousel'), { ssr: true })
+const AnimatedGrid   = dynamic(() => import('./AnimatedSection').then(m => ({ default: m.AnimatedGrid })), { ssr: false, loading: () => <div /> })
+const AnimatedItem   = dynamic(() => import('./AnimatedSection').then(m => ({ default: m.AnimatedItem })), { ssr: false, loading: () => <div /> })
 
 export const revalidate = 60
 
@@ -38,25 +40,38 @@ const getStaticHomeData = unstable_cache(
   { revalidate: 60, tags: ['banners', 'categories'] }
 )
 
+type HomeProduct = { id: string; name: string; slug: string; price: number; compare_price: number | null; images: string[] | null }
+
+const getDynamicHomeProducts = unstable_cache(
+  async (): Promise<{ featured: HomeProduct[]; deals: HomeProduct[] }> => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      return { featured: [], deals: [] }
+    }
+    const supabase = createPublicClient()
+    const [{ data: featured }, { data: deals }] = await Promise.all([
+      supabase
+        .from('products')
+        .select('id,name,slug,price,compare_price,images')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(8),
+      supabase
+        .from('products')
+        .select('id,name,slug,price,compare_price,images')
+        .eq('is_active', true)
+        .not('compare_price', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(8),
+    ])
+    return { featured: featured ?? [], deals: deals ?? [] }
+  },
+  ['home-products'],
+  { revalidate: 60, tags: ['products'] }
+)
+
 export default async function HomePage() {
   const { banners, categories } = await getStaticHomeData()
-
-  const supabase = await createServerClient()
-  const [{ data: featured }, { data: deals }] = await Promise.all([
-    supabase
-      .from('products')
-      .select('id,name,slug,price,compare_price,images')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(8),
-    supabase
-      .from('products')
-      .select('id,name,slug,price,compare_price,images')
-      .eq('is_active', true)
-      .not('compare_price', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(8),
-  ])
+  const { featured, deals } = await getDynamicHomeProducts()
 
   const heroSlides = banners.filter(b => b.sort_order === 0)
   const dealBanner = banners.find(b => b.sort_order === 1) ?? null

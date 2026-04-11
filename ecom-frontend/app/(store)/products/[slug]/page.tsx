@@ -1,6 +1,7 @@
-import { createServerClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { unstable_cache } from 'next/cache'
 import { cache } from 'react'
+import { createPublicClient } from '@/lib/supabase/admin'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatPrice } from '@/lib/utils'
 import { Star, Shield, RefreshCw, Truck } from 'lucide-react'
@@ -13,12 +14,11 @@ import RecommendedProducts from './RecommendedProducts'
 import ProductOffers from './ProductOffers'
 
 export const revalidate = 60
-export const dynamicParams = true // serve uncached slugs on demand
+export const dynamicParams = true
 
 // Pre-render the first 50 products at build time for instant load
 export async function generateStaticParams() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return []
-  const { createPublicClient } = await import('@/lib/supabase/admin')
   const supabase = createPublicClient()
   const { data } = await supabase
     .from('products')
@@ -31,17 +31,93 @@ export async function generateStaticParams() {
 
 interface Props { params: Promise<{ slug: string }> }
 
-// React cache() deduplicates this across generateMetadata + page within one request
-const getProduct = cache(async (slug: string) => {
-  const supabase = await createServerClient()
-  const { data, error } = await supabase
-    .from('products')
-    .select('*, categories(name, slug)')
-    .eq('slug', slug)
-    .maybeSingle()
-  if (error) console.error('[product page] product query:', error.message)
-  return data
-})
+// ISR cache for product core data — busted when products tag is invalidated
+const getProductBySlug = unstable_cache(
+  async (slug: string) => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return null
+    const supabase = createPublicClient()
+    const { data, error } = await supabase
+      .from('products')
+      .select('*, categories(name, slug)')
+      .eq('slug', slug)
+      .maybeSingle()
+    if (error) console.error('[product page] product query:', error.message)
+    return data
+  },
+  ['product-by-slug'],
+  { revalidate: 60, tags: ['products'] }
+)
+
+// React cache() deduplicates within one request (generateMetadata + page)
+const getProduct = cache(getProductBySlug)
+
+// Cache offers — busted when offers tag is invalidated
+const getOffers = unstable_cache(
+  async () => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return []
+    const supabase = createPublicClient()
+    const { data } = await supabase
+      .from('offers')
+      .select('id, title, description, type, upfront_pct, discount_pct, sort_order')
+      .eq('is_active', true)
+      .order('sort_order')
+    return data ?? []
+  },
+  ['offers-list'],
+  { revalidate: 300, tags: ['offers'] }
+)
+
+// Cache reviews, variants, recommended — busted independently
+const getProductSupportData = unstable_cache(
+  async (productId: string, categoryId: string | null) => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return { reviews: [], variants: [], recommended: [] }
+    const supabase = createPublicClient()
+
+    const [{ data: reviewRows }, { data: variantRows }, { data: recommendedRaw }] = await Promise.all([
+      supabase
+        .from('reviews')
+        .select('id, rating, comment, created_at, is_verified_purchase, profiles(full_name)')
+        .eq('product_id', productId)
+        .eq('is_approved', true),
+      supabase
+        .from('product_variants')
+        .select('id, name, options')
+        .eq('product_id', productId),
+      supabase
+        .from('products')
+        .select('id, name, slug, price, compare_price, images')
+        .eq('is_active', true)
+        .eq('category_id', categoryId ?? '')
+        .neq('id', productId)
+        .order('created_at', { ascending: false })
+        .limit(10),
+    ])
+
+    // Fill with latest products if not enough from same category
+    const recommended = recommendedRaw && recommendedRaw.length >= 4
+      ? recommendedRaw
+      : await supabase
+          .from('products')
+          .select('id, name, slug, price, compare_price, images')
+          .eq('is_active', true)
+          .neq('id', productId)
+          .order('created_at', { ascending: false })
+          .limit(10)
+          .then(r => r.data ?? [])
+
+    return {
+      reviews: reviewRows ?? [],
+      variants: (variantRows ?? []).map((v: any) => ({
+        id: v.id,
+        name: v.name,
+        options: Array.isArray(v.options) ? v.options : [],
+      })),
+      recommended: recommended ?? [],
+    }
+  },
+  ['product-support-data'],
+  { revalidate: 60, tags: ['reviews', 'products'] }
+)
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params
@@ -52,65 +128,25 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function ProductDetailPage({ params }: Props) {
   const { slug } = await params
-
-  // Reuses cached result — no second DB round trip
   const product = await getProduct(slug)
 
-  // 404 if product doesn't exist or is inactive
   if (!product || product.is_active === false) notFound()
 
-  // Fetch reviews, variants, and recommended products in parallel
-  const supabase = await createServerClient()
-  const [{ data: reviewRows }, { data: variantRowsFinal }, { data: recommendedRaw }] = await Promise.all([
-    supabase
-      .from('reviews')
-      .select('id, rating, comment, created_at, is_verified_purchase, profiles(full_name)')
-      .eq('product_id', product.id)
-      .eq('is_approved', true),
-    supabase
-      .from('product_variants')
-      .select('id, name, options')
-      .eq('product_id', product.id),
-    supabase
-      .from('products')
-      .select('id, name, slug, price, compare_price, images')
-      .eq('is_active', true)
-      .eq('category_id', product.category_id ?? '')
-      .neq('id', product.id)
-      .order('created_at', { ascending: false })
-      .limit(10),
+  const [{ reviews, variants, recommended }, offers] = await Promise.all([
+    getProductSupportData(product.id, product.category_id ?? null),
+    getOffers(),
   ])
-
-  // If not enough from same category, fill with latest products
-  const recommended = recommendedRaw && recommendedRaw.length >= 4
-    ? recommendedRaw
-    : await supabase
-        .from('products')
-        .select('id, name, slug, price, compare_price, images')
-        .eq('is_active', true)
-        .neq('id', product.id)
-        .order('created_at', { ascending: false })
-        .limit(10)
-        .then(r => r.data ?? [])
 
   const discount = product.compare_price
     ? Math.round((1 - product.price / product.compare_price) * 100)
     : 0
 
-  const reviews = reviewRows ?? []
   const avgRating = reviews.length
     ? reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length
     : 0
 
   const images: string[] = product.images ?? []
   const videoUrl: string | null = product.video_url ?? null
-
-  // Normalize variants: options should be string[]
-  const variants = (variantRowsFinal ?? []).map((v: any) => ({
-    id: v.id,
-    name: v.name,
-    options: Array.isArray(v.options) ? v.options : [],
-  }))
 
   const savings = product.compare_price
     ? product.compare_price - product.price
@@ -249,7 +285,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
           {/* Offers */}
           <div className="border-t border-gray-100 pt-5">
-            <ProductOffers price={product.price} />
+            <ProductOffers price={product.price} initialOffers={offers} />
           </div>
 
           {/* Add to Cart */}

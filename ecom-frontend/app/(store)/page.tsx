@@ -100,9 +100,9 @@ export default async function HomePage() {
         <section className="max-w-350 mx-auto px-4 sm:px-6 lg:px-10 pb-14">
           <SectionHeader title="Featured Products" href="/products" linkLabel="View all →" />
           <AnimatedGrid className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 mt-7">
-            {featured.map(p => (
+            {featured.map((p, i) => (
               <AnimatedItem key={p.id}>
-                <ProductCard product={p} />
+                <ProductCard product={p} priority={i < 4} />
               </AnimatedItem>
             ))}
           </AnimatedGrid>
@@ -179,8 +179,9 @@ function SectionHeader({ title, href, linkLabel }: { title: string; href?: strin
 }
 
 // ── Product Card ──────────────────────────────────────────────────────────────
-function ProductCard({ product }: {
+function ProductCard({ product, priority = false }: {
   product: { id: string; name: string; slug: string; price: number; compare_price: number | null; images: string[] | null }
+  priority?: boolean
 }) {
   const image    = product.images?.[0]
   const discount = product.compare_price
@@ -198,6 +199,7 @@ function ProductCard({ product }: {
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             className="object-cover group-hover:scale-105 transition-transform duration-500"
+            priority={priority}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-300 text-5xl">📦</div>
@@ -213,10 +215,10 @@ function ProductCard({ product }: {
           {product.name}
         </p>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-bold text-sm text-gray-900">{formatPrice(product.price, 'USD')}</span>
+          <span className="font-bold text-sm text-gray-900">{formatPrice(product.price)}</span>
           {product.compare_price && (
             <span className="text-xs text-gray-400 line-through">
-              {formatPrice(product.compare_price, 'USD')}
+              {formatPrice(product.compare_price)}
             </span>
           )}
         </div>

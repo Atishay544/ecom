@@ -54,7 +54,7 @@ export default async function OrdersPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Total</p>
-                  <p className="font-bold">{formatPrice(order.total_amount, 'USD')}</p>
+                  <p className="font-bold">{formatPrice(order.total_amount)}</p>
                 </div>
                 <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-600'}`}>
                   {order.status}

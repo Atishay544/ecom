@@ -125,9 +125,9 @@ function ProductCard({ product }: { product: any }) {
       </div>
       <p className="text-sm font-medium line-clamp-2 mb-1">{product.name}</p>
       <div className="flex items-center gap-2">
-        <span className="font-bold">{formatPrice(product.price, 'USD')}</span>
+        <span className="font-bold">{formatPrice(product.price)}</span>
         {product.compare_price && (
-          <span className="text-sm text-gray-400 line-through">{formatPrice(product.compare_price, 'USD')}</span>
+          <span className="text-sm text-gray-400 line-through">{formatPrice(product.compare_price)}</span>
         )}
       </div>
     </Link>

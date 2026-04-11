@@ -9,8 +9,25 @@ import VariantSelector from './VariantSelector'
 import AddToCartButton from './AddToCartButton'
 import ReviewsList from './ReviewsList'
 import ReviewForm from './ReviewForm'
+import RecommendedProducts from './RecommendedProducts'
+import ProductOffers from './ProductOffers'
 
 export const revalidate = 60
+export const dynamicParams = true // serve uncached slugs on demand
+
+// Pre-render the first 50 products at build time for instant load
+export async function generateStaticParams() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return []
+  const { createPublicClient } = await import('@/lib/supabase/admin')
+  const supabase = createPublicClient()
+  const { data } = await supabase
+    .from('products')
+    .select('slug')
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  return (data ?? []).map(p => ({ slug: p.slug }))
+}
 
 interface Props { params: Promise<{ slug: string }> }
 
@@ -42,18 +59,39 @@ export default async function ProductDetailPage({ params }: Props) {
   // 404 if product doesn't exist or is inactive
   if (!product || product.is_active === false) notFound()
 
-  // Fetch reviews and variants in parallel — separate queries so missing table doesn't break page
+  // Fetch reviews, variants, and recommended products in parallel
   const supabase = await createServerClient()
-  const [{ data: reviewRows }, { data: variantRowsFinal }] = await Promise.all([
+  const [{ data: reviewRows }, { data: variantRowsFinal }, { data: recommendedRaw }] = await Promise.all([
     supabase
       .from('reviews')
-      .select('id, rating, comment, created_at, profiles(full_name)')
-      .eq('product_id', product.id),
+      .select('id, rating, comment, created_at, is_verified_purchase, profiles(full_name)')
+      .eq('product_id', product.id)
+      .eq('is_approved', true),
     supabase
       .from('product_variants')
       .select('id, name, options')
       .eq('product_id', product.id),
+    supabase
+      .from('products')
+      .select('id, name, slug, price, compare_price, images')
+      .eq('is_active', true)
+      .eq('category_id', product.category_id ?? '')
+      .neq('id', product.id)
+      .order('created_at', { ascending: false })
+      .limit(10),
   ])
+
+  // If not enough from same category, fill with latest products
+  const recommended = recommendedRaw && recommendedRaw.length >= 4
+    ? recommendedRaw
+    : await supabase
+        .from('products')
+        .select('id, name, slug, price, compare_price, images')
+        .eq('is_active', true)
+        .neq('id', product.id)
+        .order('created_at', { ascending: false })
+        .limit(10)
+        .then(r => r.data ?? [])
 
   const discount = product.compare_price
     ? Math.round((1 - product.price / product.compare_price) * 100)
@@ -93,7 +131,7 @@ export default async function ProductDetailPage({ params }: Props) {
             offers: {
               '@type': 'Offer',
               price: product.price,
-              priceCurrency: 'USD',
+              priceCurrency: 'INR',
               availability:
                 product.stock > 0
                   ? 'https://schema.org/InStock'
@@ -115,7 +153,7 @@ export default async function ProductDetailPage({ params }: Props) {
             <span>/</span>
           </>
         )}
-        <span className="text-gray-600 truncate max-w-[180px]">{product.name}</span>
+        <span className="text-gray-600 truncate max-w-45">{product.name}</span>
       </nav>
 
       <div className="grid md:grid-cols-[1fr_1fr] lg:grid-cols-[45%_1fr] gap-8 lg:gap-14">
@@ -159,12 +197,12 @@ export default async function ProductDetailPage({ params }: Props) {
           <div>
             <div className="flex items-baseline gap-3 flex-wrap">
               <span className="text-3xl font-extrabold text-gray-900">
-                {formatPrice(product.price, 'USD')}
+                {formatPrice(product.price)}
               </span>
               {product.compare_price && (
                 <>
                   <span className="text-lg text-gray-400 line-through">
-                    {formatPrice(product.compare_price, 'USD')}
+                    {formatPrice(product.compare_price)}
                   </span>
                   <span className="text-base font-bold text-green-600">
                     {discount}% OFF
@@ -174,7 +212,7 @@ export default async function ProductDetailPage({ params }: Props) {
             </div>
             {savings > 0 && (
               <p className="text-sm text-green-600 font-medium mt-1">
-                You save {formatPrice(savings, 'USD')}
+                You save {formatPrice(savings)}
               </p>
             )}
             <p className="text-xs text-gray-400 mt-1">inclusive of all taxes</p>
@@ -208,6 +246,11 @@ export default async function ProductDetailPage({ params }: Props) {
               <VariantSelector variants={variants} />
             </div>
           )}
+
+          {/* Offers */}
+          <div className="border-t border-gray-100 pt-5">
+            <ProductOffers price={product.price} />
+          </div>
 
           {/* Add to Cart */}
           <div className="border-t border-gray-100 pt-5">
@@ -284,6 +327,9 @@ export default async function ProductDetailPage({ params }: Props) {
 
         {product.id && <ReviewForm productId={product.id} />}
       </div>
+
+      {/* Recommended Products */}
+      <RecommendedProducts products={recommended as any[]} />
     </div>
   )
 }

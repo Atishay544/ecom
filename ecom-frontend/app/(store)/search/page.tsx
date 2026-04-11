@@ -102,7 +102,7 @@ export default async function SearchPage({ searchParams }: Props) {
                     )}
                   </div>
                   <p className="text-sm font-medium line-clamp-2">{p.name}</p>
-                  <p className="text-sm font-bold mt-0.5">{formatPrice(p.price, 'USD')}</p>
+                  <p className="text-sm font-bold mt-0.5">{formatPrice(p.price)}</p>
                 </Link>
               )
             })}

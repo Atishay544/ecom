@@ -44,7 +44,7 @@ export default function CartPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{item.name}</p>
-                <p className="text-sm text-gray-500 mt-0.5">{formatPrice(item.price, 'USD')} each</p>
+                <p className="text-sm text-gray-500 mt-0.5">{formatPrice(item.price)} each</p>
                 <div className="flex items-center gap-3 mt-2">
                   <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
                     <button onClick={() => updateQuantity(item.id, item.quantity - 1)}
@@ -59,7 +59,7 @@ export default function CartPage() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-bold">{formatPrice(item.price * item.quantity, 'USD')}</p>
+                <p className="font-bold">{formatPrice(item.price * item.quantity)}</p>
               </div>
             </div>
           ))}

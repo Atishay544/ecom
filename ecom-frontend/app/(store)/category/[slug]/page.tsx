@@ -97,8 +97,8 @@ export default async function CategoryPage({ params, searchParams }: Props) {
                 </div>
                 <p className="text-sm font-medium line-clamp-2">{p.name}</p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="font-bold text-sm">{formatPrice(p.price, 'USD')}</span>
-                  {p.compare_price && <span className="text-xs text-gray-400 line-through">{formatPrice(p.compare_price, 'USD')}</span>}
+                  <span className="font-bold text-sm">{formatPrice(p.price)}</span>
+                  {p.compare_price && <span className="text-xs text-gray-400 line-through">{formatPrice(p.compare_price)}</span>}
                 </div>
               </Link>
             )

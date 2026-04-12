@@ -3,9 +3,6 @@ import AccountNav from './AccountNav'
 
 // Account pages are always user-specific — never statically generate them
 export const dynamic = 'force-dynamic'
-// Edge runtime eliminates Lambda cold starts (~300–500ms → ~0ms)
-// @supabase/ssr + date-fns + lucide-react are all fetch/pure-JS — Edge compatible
-export const runtime = 'edge'
 
 export const metadata = {
   title: 'My Account',

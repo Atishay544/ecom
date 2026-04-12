@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { formatPrice } from '@/lib/utils'
 import { Package } from 'lucide-react'
 
+export const runtime = 'edge'
+
 const STATUS_COLORS: Record<string, string> = {
   pending:    'bg-yellow-100 text-yellow-700',
   confirmed:  'bg-blue-100 text-blue-700',

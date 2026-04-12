@@ -1,6 +1,8 @@
 import { requireUser } from '@/lib/user-auth'
 import AddressList from './AddressList'
 
+export const runtime = 'edge'
+
 export default async function AddressesPage() {
   const { user, supabase } = await requireUser('/account/addresses')
 

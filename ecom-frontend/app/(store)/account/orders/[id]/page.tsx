@@ -6,6 +6,8 @@ import { formatPrice } from '@/lib/utils'
 import { CheckCircle2, XCircle } from 'lucide-react'
 import InvoiceDownload from './InvoiceDownload'
 
+export const runtime = 'edge'
+
 interface Props {
   params: Promise<{ id: string }>
   searchParams: Promise<{ success?: string; payment?: string }>

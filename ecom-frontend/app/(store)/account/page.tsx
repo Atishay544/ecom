@@ -1,6 +1,8 @@
 import { requireUser } from '@/lib/user-auth'
 import AccountForm from './AccountForm'
 
+export const runtime = 'edge'
+
 export default async function AccountPage() {
   const { user, supabase } = await requireUser('/account')
 

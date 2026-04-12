@@ -8,6 +8,9 @@ import { useCartStore } from '@/lib/store/cart'
 import { useAuth } from '@/lib/hooks/useAuth'
 import ProfileDrawer from './ProfileDrawer'
 
+// Max categories shown inline before collapsing into "More ▾"
+const VISIBLE_LIMIT = 4
+
 export default function Header({ categories }: { categories: any[] }) {
   const itemCount = useCartStore(s => s.itemCount())
   const { user } = useAuth()
@@ -16,14 +19,31 @@ export default function Header({ categories }: { categories: any[] }) {
   const [searchQ, setSearchQ] = useState('')
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-  useEffect(() => { setMounted(true) }, [])
+  const moreRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { setMounted(true) }, [])
+
+  // Close "More" dropdown on outside click
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false)
+      }
+    }
+    if (moreOpen) document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [moreOpen])
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     if (searchQ.trim()) router.push(`/search?q=${encodeURIComponent(searchQ.trim())}`)
   }
+
+  const visibleCats = categories.slice(0, VISIBLE_LIMIT)
+  const overflowCats = categories.slice(VISIBLE_LIMIT)
 
   return (
     <>
@@ -41,70 +61,107 @@ export default function Header({ categories }: { categories: any[] }) {
           </Link>
 
           {/* Category nav (desktop) */}
-          <nav className="hidden md:flex gap-1 ml-4">
-            {categories.map(cat => {
-              const isActive = pathname === `/category/${cat.slug}`
-              return (
-                <div key={cat.id} className="relative group">
-                  <Link
-                    href={`/category/${cat.slug}`}
-                    prefetch={false}
-                    className={`relative px-3 py-2 text-sm font-medium flex items-center gap-0.5 rounded-lg transition-colors duration-200 ${
-                      isActive
-                        ? 'text-indigo-600'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                    }`}
-                  >
-                    {cat.name}
-                    {cat.children?.length > 0 && (
-                      <ChevronDown size={13} className="opacity-60 group-hover:rotate-180 transition-transform duration-200" />
-                    )}
-                    {isActive && (
-                      <motion.span
-                        layoutId="nav-underline"
-                        className="absolute bottom-0 left-3 right-3 h-0.5 bg-indigo-600 rounded-full"
-                        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                      />
-                    )}
-                  </Link>
+          <nav className="hidden md:flex items-center gap-1 ml-4">
+            {/* Visible categories (up to VISIBLE_LIMIT) */}
+            {visibleCats.map(cat => (
+              <CategoryLink key={cat.id} cat={cat} pathname={pathname} />
+            ))}
 
-                  {cat.children?.length > 0 && (
-                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-100 shadow-xl rounded-2xl py-2 min-w-48 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                      {cat.children.map((sub: any) => (
-                        <Link
-                          key={sub.id}
-                          href={`/category/${sub.slug}`}
-                          prefetch={false}
-                          className="flex items-center px-4 py-2.5 text-sm text-gray-600 hover:text-indigo-600 hover:bg-indigo-50/60 transition-colors duration-150"
-                        >
-                          {sub.name}
-                        </Link>
+            {/* "More ▾" overflow dropdown */}
+            {overflowCats.length > 0 && (
+              <div ref={moreRef} className="relative">
+                <button
+                  onClick={() => setMoreOpen(v => !v)}
+                  className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                    moreOpen
+                      ? 'text-indigo-600 bg-indigo-50'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  More
+                  <ChevronDown size={13} className={`opacity-60 transition-transform duration-200 ${moreOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                <AnimatePresence>
+                  {moreOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-0 mt-1 bg-white border border-gray-100 shadow-xl rounded-2xl py-2 min-w-52 z-50"
+                    >
+                      {overflowCats.map((cat: any) => (
+                        <div key={cat.id}>
+                          <Link
+                            href={`/category/${cat.slug}`}
+                            prefetch={false}
+                            onClick={() => setMoreOpen(false)}
+                            className={`flex items-center justify-between px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
+                              pathname === `/category/${cat.slug}`
+                                ? 'text-indigo-600 bg-indigo-50/60'
+                                : 'text-gray-700 hover:text-indigo-600 hover:bg-indigo-50/60'
+                            }`}
+                          >
+                            {cat.name}
+                            {cat.children?.length > 0 && (
+                              <ChevronDown size={12} className="opacity-40 -rotate-90" />
+                            )}
+                          </Link>
+                          {cat.children?.length > 0 && (
+                            <div className="pl-3 pb-1">
+                              {cat.children.map((sub: any) => (
+                                <Link
+                                  key={sub.id}
+                                  href={`/category/${sub.slug}`}
+                                  prefetch={false}
+                                  onClick={() => setMoreOpen(false)}
+                                  className="block px-4 py-1.5 text-xs text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/40 rounded-lg transition-colors duration-150"
+                                >
+                                  {sub.name}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       ))}
-                    </div>
+                      <div className="border-t border-gray-100 mt-1 pt-1">
+                        <Link
+                          href="/products"
+                          prefetch={false}
+                          onClick={() => setMoreOpen(false)}
+                          className="block px-4 py-2.5 text-sm font-medium text-gray-700 hover:text-indigo-600 hover:bg-indigo-50/60 transition-colors duration-150"
+                        >
+                          All Products →
+                        </Link>
+                      </div>
+                    </motion.div>
                   )}
-                </div>
-              )
-            })}
+                </AnimatePresence>
+              </div>
+            )}
 
-            {/* All Products link */}
-            <Link
-              href="/products"
-              prefetch={false}
-              className={`relative px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
-                pathname === '/products'
-                  ? 'text-indigo-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              All Products
-              {pathname === '/products' && (
-                <motion.span
-                  layoutId="nav-underline"
-                  className="absolute bottom-0 left-3 right-3 h-0.5 bg-indigo-600 rounded-full"
-                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                />
-              )}
-            </Link>
+            {/* All Products link — only show inline when few categories */}
+            {overflowCats.length === 0 && (
+              <Link
+                href="/products"
+                prefetch={false}
+                className={`relative px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                  pathname === '/products'
+                    ? 'text-indigo-600'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                All Products
+                {pathname === '/products' && (
+                  <motion.span
+                    layoutId="nav-underline"
+                    className="absolute bottom-0 left-3 right-3 h-0.5 bg-indigo-600 rounded-full"
+                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                  />
+                )}
+              </Link>
+            )}
           </nav>
 
           {/* Search */}
@@ -181,19 +238,12 @@ export default function Header({ categories }: { categories: any[] }) {
             >
               <div className="px-4 py-4 space-y-0.5">
                 {categories.map(cat => (
-                  <Link
+                  <MobileCategoryItem
                     key={cat.id}
-                    href={`/category/${cat.slug}`}
-                    prefetch={false}
-                    className={`block py-2.5 px-3 text-sm font-medium rounded-lg transition-colors duration-150 ${
-                      pathname === `/category/${cat.slug}`
-                        ? 'text-indigo-600 bg-indigo-50'
-                        : 'text-gray-700 hover:text-black hover:bg-gray-50'
-                    }`}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    {cat.name}
-                  </Link>
+                    cat={cat}
+                    pathname={pathname}
+                    onClose={() => setMobileOpen(false)}
+                  />
                 ))}
                 <Link
                   href="/products"
@@ -225,5 +275,120 @@ export default function Header({ categories }: { categories: any[] }) {
 
       <ProfileDrawer open={profileOpen} onClose={() => setProfileOpen(false)} />
     </>
+  )
+}
+
+// ── Desktop category link with sub-dropdown on hover ─────────────────────────
+function CategoryLink({ cat, pathname }: { cat: any; pathname: string }) {
+  const isActive = pathname === `/category/${cat.slug}`
+  return (
+    <div className="relative group">
+      <Link
+        href={`/category/${cat.slug}`}
+        prefetch={false}
+        className={`relative px-3 py-2 text-sm font-medium flex items-center gap-0.5 rounded-lg transition-colors duration-200 ${
+          isActive
+            ? 'text-indigo-600'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+        }`}
+      >
+        {cat.name}
+        {cat.children?.length > 0 && (
+          <ChevronDown size={13} className="opacity-60 group-hover:rotate-180 transition-transform duration-200" />
+        )}
+        {isActive && (
+          <motion.span
+            layoutId="nav-underline"
+            className="absolute bottom-0 left-3 right-3 h-0.5 bg-indigo-600 rounded-full"
+            transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+          />
+        )}
+      </Link>
+
+      {cat.children?.length > 0 && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-100 shadow-xl rounded-2xl py-2 min-w-48 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+          {cat.children.map((sub: any) => (
+            <Link
+              key={sub.id}
+              href={`/category/${sub.slug}`}
+              prefetch={false}
+              className="flex items-center px-4 py-2.5 text-sm text-gray-600 hover:text-indigo-600 hover:bg-indigo-50/60 transition-colors duration-150"
+            >
+              {sub.name}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Mobile category item — collapsible if it has children ────────────────────
+function MobileCategoryItem({ cat, pathname, onClose }: { cat: any; pathname: string; onClose: () => void }) {
+  const [open, setOpen] = useState(false)
+  const isActive = pathname.startsWith(`/category/${cat.slug}`)
+
+  if (!cat.children?.length) {
+    return (
+      <Link
+        href={`/category/${cat.slug}`}
+        prefetch={false}
+        className={`block py-2.5 px-3 text-sm font-medium rounded-lg transition-colors duration-150 ${
+          isActive ? 'text-indigo-600 bg-indigo-50' : 'text-gray-700 hover:text-black hover:bg-gray-50'
+        }`}
+        onClick={onClose}
+      >
+        {cat.name}
+      </Link>
+    )
+  }
+
+  return (
+    <div>
+      <button
+        className={`w-full flex items-center justify-between py-2.5 px-3 text-sm font-medium rounded-lg transition-colors duration-150 ${
+          isActive ? 'text-indigo-600 bg-indigo-50' : 'text-gray-700 hover:text-black hover:bg-gray-50'
+        }`}
+        onClick={() => setOpen(v => !v)}
+      >
+        {cat.name}
+        <ChevronDown size={14} className={`opacity-50 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="overflow-hidden pl-3"
+          >
+            <Link
+              href={`/category/${cat.slug}`}
+              prefetch={false}
+              className="block py-2 px-3 text-sm text-gray-500 hover:text-indigo-600 rounded-lg transition-colors duration-150"
+              onClick={onClose}
+            >
+              All {cat.name}
+            </Link>
+            {cat.children.map((sub: any) => (
+              <Link
+                key={sub.id}
+                href={`/category/${sub.slug}`}
+                prefetch={false}
+                className={`block py-2 px-3 text-sm rounded-lg transition-colors duration-150 ${
+                  pathname === `/category/${sub.slug}`
+                    ? 'text-indigo-600 font-medium'
+                    : 'text-gray-600 hover:text-indigo-600 hover:bg-gray-50'
+                }`}
+                onClick={onClose}
+              >
+                {sub.name}
+              </Link>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }

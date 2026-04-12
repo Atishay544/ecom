@@ -3,6 +3,8 @@ import { formatDistanceToNow } from 'date-fns'
 import { Bell } from 'lucide-react'
 import MarkAllRead from './MarkAllRead'
 
+export const runtime = 'edge'
+
 export default async function NotificationsPage() {
   const { user, supabase } = await requireUser('/account/notifications')
 
@@ -11,6 +13,7 @@ export default async function NotificationsPage() {
     .select('id,title,message,is_read,created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
+    .limit(50)
 
   const hasUnread = (notifications ?? []).some(n => !n.is_read)
 

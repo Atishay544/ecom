@@ -3,8 +3,6 @@ import { formatDistanceToNow } from 'date-fns'
 import { Bell } from 'lucide-react'
 import MarkAllRead from './MarkAllRead'
 
-export const runtime = 'edge'
-
 export default async function NotificationsPage() {
   const { user, supabase } = await requireUser('/account/notifications')
 

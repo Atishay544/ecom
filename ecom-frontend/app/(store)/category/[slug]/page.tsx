@@ -87,23 +87,23 @@ export default async function CategoryPage({ params, searchParams }: Props) {
     <div className="max-w-350 mx-auto px-4 sm:px-6 lg:px-10 py-10">
       {/* Category header */}
       {category.image_url && (
-        <div className="relative h-40 rounded-2xl overflow-hidden mb-6 bg-gray-100">
+        <div className="relative h-32 sm:h-44 rounded-2xl overflow-hidden mb-6 bg-gray-100">
           <Image src={category.image_url} alt={category.name} fill className="object-cover" />
-          <div className="absolute inset-0 bg-black/40 flex items-center px-8">
-            <h1 className="text-3xl font-bold text-white">{category.name}</h1>
+          <div className="absolute inset-0 bg-black/40 flex items-center px-5 sm:px-8">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">{category.name}</h1>
           </div>
         </div>
       )}
       {!category.image_url && <h1 className="text-2xl font-bold mb-6">{category.name}</h1>}
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <p className="text-sm text-gray-500">{count} products</p>
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between mb-5 gap-3">
+        <p className="text-sm text-gray-500 shrink-0">{count} products</p>
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
           {[['newest','Newest'],['popular','Popular'],['price_asc','Price ↑'],['price_desc','Price ↓']].map(([v, l]) => (
             <Link key={v}
               href={`/category/${slug}?sort=${v}`}
-              className={`text-xs px-3 py-1.5 rounded-full border transition ${sort === v ? 'bg-black text-white border-black' : 'border-gray-300 hover:border-gray-500'}`}>
+              className={`text-xs px-3 py-1.5 rounded-full border whitespace-nowrap transition ${sort === v ? 'bg-black text-white border-black' : 'border-gray-300 hover:border-gray-500'}`}>
               {l}
             </Link>
           ))}

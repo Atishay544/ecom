@@ -6,9 +6,6 @@ import Image from 'next/image'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-// Responsive height: shorter on mobile to avoid zoom, taller on desktop
-const SLIDE_HEIGHT = 'h-[240px] sm:h-[360px] md:h-[460px] lg:h-[540px]'
-
 interface Banner {
   id: string
   display_style: string | null
@@ -50,11 +47,12 @@ export default function HeroCarousel({ banners }: { banners: Banner[] }) {
   // ── Fallback (no banners) ─────────────────────────────────────────────────
   if (count === 0) {
     return (
-      <section className={`relative overflow-hidden ${SLIDE_HEIGHT} bg-gray-900 text-white flex items-center justify-center`}>
+      <section className="relative w-full overflow-hidden bg-gray-900 text-white"
+        style={{ minHeight: 'clamp(240px, 50vw, 640px)' }}>
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,var(--tw-gradient-stops))] from-gray-800 via-gray-900 to-black" />
-        <div className="relative z-10 text-center px-6">
+        <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-6 py-16">
           <p className="text-xs font-semibold uppercase tracking-[0.25em] mb-4 opacity-60">Official Store</p>
-          <h1 className="text-4xl md:text-6xl font-extrabold mb-4 leading-tight tracking-tight">New Season Arrivals</h1>
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold mb-4 leading-tight tracking-tight">New Season Arrivals</h1>
           <p className="text-base md:text-lg mb-8 opacity-70 max-w-lg mx-auto">Discover the latest styles at unbeatable prices</p>
           <Link href="/products"
             className="inline-flex items-center gap-2 border-2 border-white/80 text-white px-8 py-3.5 rounded-full font-semibold hover:bg-white hover:text-gray-900 transition-all duration-300 active:scale-95">
@@ -66,16 +64,19 @@ export default function HeroCarousel({ banners }: { banners: Banner[] }) {
   }
 
   const slide = banners[current]
-
   const ease = [0.22, 1, 0.36, 1] as [number, number, number, number]
   const variants = {
-    enter: (d: number) => ({ x: d > 0 ? '100%' : '-100%', opacity: 0 }),
+    enter:  (d: number) => ({ x: d > 0 ? '100%' : '-100%', opacity: 0 }),
     center: { x: 0, opacity: 1, transition: { duration: 0.55, ease } },
     exit:   (d: number) => ({ x: d > 0 ? '-100%' : '100%', opacity: 0, transition: { duration: 0.45, ease } }),
   }
 
   return (
-    <section className={`relative overflow-hidden ${SLIDE_HEIGHT}`}>
+    // Full-bleed, fluid height — never crops at any viewport width
+    // clamp: 240px on tiny phones → scales with viewport → caps at 680px on ultra-wide
+    <section className="relative w-full overflow-hidden"
+      style={{ height: 'clamp(240px, 46vw, 680px)' }}>
+
       <AnimatePresence initial={false} custom={direction} mode="sync">
         <motion.div
           key={slide.id}
@@ -86,7 +87,7 @@ export default function HeroCarousel({ banners }: { banners: Banner[] }) {
           exit="exit"
           className="absolute inset-0"
         >
-          <SlideRenderer slide={slide} height={SLIDE_HEIGHT} />
+          <SlideRenderer slide={slide} />
         </motion.div>
       </AnimatePresence>
 
@@ -94,22 +95,22 @@ export default function HeroCarousel({ banners }: { banners: Banner[] }) {
       {count > 1 && (
         <>
           <button onClick={prev} aria-label="Previous banner"
-            className="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-black/25 hover:bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-95">
-            <ChevronLeft size={22} />
+            className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/25 hover:bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-95">
+            <ChevronLeft size={20} />
           </button>
           <button onClick={next} aria-label="Next banner"
-            className="absolute right-4 md:right-6 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-black/25 hover:bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-95">
-            <ChevronRight size={22} />
+            className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/25 hover:bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 active:scale-95">
+            <ChevronRight size={20} />
           </button>
 
           {/* ── Dots ── */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+          <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
             {banners.map((b, i) => (
               <button key={b.id} onClick={() => goTo(i)} aria-label={`Go to slide ${i + 1}`}
                 className={`rounded-full transition-all duration-300 ${
                   i === current
-                    ? 'w-7 h-2.5 bg-white shadow-sm'
-                    : 'w-2.5 h-2.5 bg-white/40 hover:bg-white/70'
+                    ? 'w-6 h-2 sm:w-7 sm:h-2.5 bg-white shadow-sm'
+                    : 'w-2 h-2 sm:w-2.5 sm:h-2.5 bg-white/40 hover:bg-white/70'
                 }`} />
             ))}
           </div>
@@ -119,8 +120,8 @@ export default function HeroCarousel({ banners }: { banners: Banner[] }) {
   )
 }
 
-// ── Slide types — all rendered inside the SAME height wrapper ─────────────────
-function SlideRenderer({ slide, height }: { slide: Banner; height: string }) {
+// ── Slide renderer ─────────────────────────────────────────────────────────────
+function SlideRenderer({ slide }: { slide: Banner }) {
   const style = slide.display_style ?? 'overlay'
   const bg    = slide.bg_color   ?? '#111827'
   const color = slide.text_color ?? '#ffffff'
@@ -132,8 +133,8 @@ function SlideRenderer({ slide, height }: { slide: Banner; height: string }) {
       <Link href={link} className="block relative w-full h-full group">
         {slide.image_url
           ? <Image src={slide.image_url} alt="banner" fill
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1400px"
-              className="object-contain sm:object-cover transition-transform duration-700 group-hover:scale-[1.02]"
+              sizes="100vw"
+              className="object-cover transition-transform duration-700 group-hover:scale-[1.02]"
               priority />
           : <div className="w-full h-full bg-gray-200" />}
       </Link>
@@ -143,19 +144,19 @@ function SlideRenderer({ slide, height }: { slide: Banner; height: string }) {
   // ── Solid Color ──────────────────────────────────────────────────────────────
   if (style === 'solid') {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center text-center px-6"
+      <div className="w-full h-full flex flex-col items-center justify-center text-center px-6 sm:px-12"
         style={{ backgroundColor: bg, color }}>
         {slide.title && (
-          <h1 className="text-4xl md:text-6xl font-extrabold mb-4 leading-tight tracking-tight">
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold mb-3 sm:mb-4 leading-tight tracking-tight">
             {slide.title}
           </h1>
         )}
         {slide.subtitle && (
-          <p className="text-base md:text-xl mb-8 opacity-80 max-w-xl">{slide.subtitle}</p>
+          <p className="text-sm sm:text-base md:text-xl mb-6 sm:mb-8 opacity-80 max-w-xl">{slide.subtitle}</p>
         )}
         {slide.link_text && (
           <Link href={link}
-            className="inline-flex items-center gap-2 border-2 px-8 py-3.5 rounded-full font-semibold hover:opacity-80 transition-all duration-200 active:scale-95"
+            className="inline-flex items-center gap-2 border-2 px-6 sm:px-8 py-3 sm:py-3.5 rounded-full font-semibold hover:opacity-80 transition-all duration-200 active:scale-95 text-sm sm:text-base"
             style={{ borderColor: color, color }}>
             {slide.link_text}
           </Link>
@@ -166,31 +167,31 @@ function SlideRenderer({ slide, height }: { slide: Banner; height: string }) {
 
   // ── Smoky Overlay (default) ──────────────────────────────────────────────────
   return (
-    <div className="relative w-full h-full flex flex-col items-center justify-center text-center px-6 overflow-hidden"
+    <div className="relative w-full h-full flex flex-col items-center justify-center text-center px-6 sm:px-12 overflow-hidden"
       style={{ backgroundColor: bg, color }}>
       {slide.image_url && (
         <Image src={slide.image_url} alt={slide.title ?? 'banner'} fill
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1400px"
-          className="object-cover opacity-40" priority />
+          sizes="100vw"
+          className="object-cover opacity-40"
+          priority />
       )}
-      {/* Gradient overlay for readability */}
       <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/20 to-transparent" />
-      <div className="relative z-10">
+      <div className="relative z-10 max-w-3xl mx-auto">
         {slide.title && (
-          <h1 className="text-4xl md:text-6xl font-extrabold mb-4 leading-tight tracking-tight drop-shadow-lg"
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold mb-3 sm:mb-4 leading-tight tracking-tight drop-shadow-lg"
             style={{ color }}>
             {slide.title}
           </h1>
         )}
         {slide.subtitle && (
-          <p className="text-base md:text-xl mb-8 opacity-90 max-w-xl mx-auto drop-shadow"
+          <p className="text-sm sm:text-base md:text-xl mb-6 sm:mb-8 opacity-90 max-w-xl mx-auto drop-shadow"
             style={{ color }}>
             {slide.subtitle}
           </p>
         )}
         {slide.link_text && (
           <Link href={link}
-            className="inline-flex items-center gap-2 border-2 px-8 py-3.5 rounded-full font-semibold backdrop-blur-sm hover:bg-white hover:text-gray-900 transition-all duration-300 active:scale-95"
+            className="inline-flex items-center gap-2 border-2 px-6 sm:px-8 py-3 sm:py-3.5 rounded-full font-semibold text-sm sm:text-base backdrop-blur-sm hover:bg-white hover:text-gray-900 transition-all duration-300 active:scale-95"
             style={{ borderColor: color, color }}>
             {slide.link_text}
           </Link>

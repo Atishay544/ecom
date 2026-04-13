@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { Suspense } from 'react'
 import { formatPrice } from '@/lib/utils'
 import ProductFilters from './ProductFilters'
+import MobileFilterDrawer from './MobileFilterDrawer'
 import SortSelect from './SortSelect'
 import ProductSkeletonGrid from '@/components/ui/ProductSkeleton'
 
@@ -75,17 +76,21 @@ export default async function ProductsPage({ searchParams }: Props) {
       <h1 className="text-2xl font-bold mb-6">All Products</h1>
 
       <div className="flex gap-6">
-        {/* Sidebar filters */}
+        {/* Sidebar filters — desktop only */}
         <aside className="hidden lg:block w-56 shrink-0">
           <ProductFilters categories={categories} currentParams={params} />
         </aside>
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {/* Toolbar */}
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-            <p className="text-sm text-gray-500">{count} products</p>
+          <div className="flex items-center justify-between mb-4 gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Sort:</span>
+              {/* Mobile filter button */}
+              <MobileFilterDrawer categories={categories} currentParams={params} />
+              <p className="text-sm text-gray-500">{count} products</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-sm text-gray-600 hidden sm:inline">Sort:</span>
               <SortSelect current={sort} />
             </div>
           </div>

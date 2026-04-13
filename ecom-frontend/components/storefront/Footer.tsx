@@ -33,7 +33,7 @@ export default function Footer({ categories = [] }: { categories?: Category[] })
         {/* Brand */}
         <div className="col-span-2 md:col-span-1">
           <h2 className="text-white font-bold text-xl mb-3">STORE</h2>
-          <p className="text-sm leading-relaxed">Quality products delivered to your door. Free shipping on orders above $499.</p>
+          <p className="text-sm leading-relaxed">Quality products delivered to your door. Free shipping on orders above ₹499.</p>
           <div className="flex gap-3 mt-4">
             {socials.map(s => (
               <a key={s.label} href={s.href}

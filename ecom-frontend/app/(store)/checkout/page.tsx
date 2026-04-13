@@ -96,7 +96,7 @@ export default function CheckoutPage() {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: res.razorpay_order.amount,
         currency: res.razorpay_order.currency,
-        name: 'My Store',
+        name: 'Layers Factory',
         description: `Order #${res.order_id}`,
         order_id: res.razorpay_order.id,
         prefill: { name: address.name, contact: address.phone, email: user.email },

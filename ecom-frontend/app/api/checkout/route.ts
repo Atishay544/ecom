@@ -3,10 +3,13 @@ import Razorpay from 'razorpay'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
 
-const razorpay = new Razorpay({
-  key_id:     process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
-})
+// Lazily instantiated — avoids build-time crash when env vars are absent
+function getRazorpay() {
+  return new Razorpay({
+    key_id:     process.env.RAZORPAY_KEY_ID!,
+    key_secret: process.env.RAZORPAY_KEY_SECRET!,
+  })
+}
 
 export async function POST(req: NextRequest) {
   // ── 1. Authenticate user via Bearer token ─────────────────────────────────
@@ -142,7 +145,7 @@ export async function POST(req: NextRequest) {
 
   // ── 7. Create Razorpay order ──────────────────────────────────────────────
   // Razorpay amount is in paise (smallest currency unit) — multiply INR by 100
-  const razorpayOrder = await razorpay.orders.create({
+  const razorpayOrder = await getRazorpay().orders.create({
     amount:          Math.round(total * 100),
     currency:        'INR',
     receipt:         order.id.slice(0, 40),

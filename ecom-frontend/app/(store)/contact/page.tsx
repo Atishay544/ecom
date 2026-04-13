@@ -34,9 +34,7 @@ export default function ContactPage() {
               <Mail size={18} className="text-gray-700" />
               <h3 className="font-semibold text-gray-900">Email</h3>
             </div>
-            <a href="mailto:support@aitalk247.com" className="text-sm text-black underline underline-offset-2">support@aitalk247.com</a>
-            <p className="text-xs text-gray-400 mt-1">For order queries:</p>
-            <a href="mailto:orders@aitalk247.com" className="text-sm text-black underline underline-offset-2">orders@aitalk247.com</a>
+            <a href="mailto:atishayjain54@gmail.com" className="text-sm text-black underline underline-offset-2">atishayjain54@gmail.com</a>
           </div>
 
           <div className="bg-gray-50 rounded-2xl p-5">

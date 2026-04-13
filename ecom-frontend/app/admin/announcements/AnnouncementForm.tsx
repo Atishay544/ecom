@@ -71,7 +71,7 @@ export default function AnnouncementForm() {
             <label className="block text-xs font-medium text-gray-600 mb-1">Message *</label>
             <input
               type="text" value={message} onChange={e => setMessage(e.target.value)} required
-              placeholder="Free shipping on orders over $99!"
+              placeholder="Free shipping on orders over ₹499!"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
             />
           </div>

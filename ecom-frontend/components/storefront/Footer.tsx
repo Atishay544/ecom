@@ -32,7 +32,7 @@ export default function Footer({ categories = [] }: { categories?: Category[] })
       <div className="max-w-350 mx-auto px-4 sm:px-6 lg:px-10 grid grid-cols-2 md:grid-cols-5 gap-8 mb-10">
         {/* Brand */}
         <div className="col-span-2 md:col-span-1">
-          <h2 className="text-white font-bold text-xl mb-3">STORE</h2>
+          <h2 className="text-white font-bold text-xl mb-3">Ganishka Collection</h2>
           <p className="text-sm leading-relaxed">Quality products delivered to your door. Free shipping on orders above ₹499.</p>
           <div className="flex gap-3 mt-4">
             {socials.map(s => (
@@ -77,10 +77,9 @@ export default function Footer({ categories = [] }: { categories?: Category[] })
       </div>
 
       <div className="border-t border-gray-800 pt-6 max-w-350 mx-auto px-4 sm:px-6 lg:px-10 flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-gray-500">
-        <p>© {new Date().getFullYear()} Store. All rights reserved.</p>
+        <p>© {new Date().getFullYear()} Ganishka Collection by Atishay Jain. All rights reserved.</p>
         <div className="flex gap-4">
-          <a href="mailto:orders@aitalk247.com" className="hover:text-white">orders@aitalk247.com</a>
-          <a href="mailto:support@aitalk247.com" className="hover:text-white">support@aitalk247.com</a>
+          <a href="mailto:atishayjain54@gmail.com" className="hover:text-white">atishayjain54@gmail.com</a>
         </div>
       </div>
     </footer>

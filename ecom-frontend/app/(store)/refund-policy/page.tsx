@@ -83,7 +83,7 @@ export default function RefundPolicyPage() {
           <h2 className="text-xl font-semibold text-gray-900 mb-3">Return Shipping Costs</h2>
           <ul className="list-disc pl-5 space-y-1 mt-2">
             <li><strong>Defective / wrong item:</strong> We cover return shipping 100%.</li>
-            <li><strong>Change of mind:</strong> A flat return shipping fee of $99 is deducted from your refund.</li>
+            <li><strong>Change of mind:</strong> A flat return shipping fee of ₹99 is deducted from your refund.</li>
           </ul>
         </section>
 

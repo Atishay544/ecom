@@ -21,9 +21,9 @@ export default function ShippingPolicyPage() {
         <section>
           <h2 className="text-xl font-semibold text-gray-900 mb-3">Free Shipping</h2>
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-800 font-medium">
-            🎉 Free shipping on all orders above $499
+            🎉 Free shipping on all orders above ₹499
           </div>
-          <p className="mt-3">Orders below $499 are charged a flat shipping fee of $49.</p>
+          <p className="mt-3">Orders below ₹499 are charged a flat shipping fee of ₹49.</p>
         </section>
 
         <section>
@@ -41,17 +41,17 @@ export default function ShippingPolicyPage() {
                 <tr>
                   <td className="px-4 py-3">Metro cities (Mumbai, Delhi, Bengaluru, Chennai, Hyderabad, Pune, Kolkata)</td>
                   <td className="px-4 py-3 font-medium">1–3 business days</td>
-                  <td className="px-4 py-3">Free above $499</td>
+                  <td className="px-4 py-3">Free above ₹499</td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3">Tier-2 &amp; Tier-3 cities</td>
                   <td className="px-4 py-3 font-medium">3–5 business days</td>
-                  <td className="px-4 py-3">Free above $499</td>
+                  <td className="px-4 py-3">Free above ₹499</td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3">Remote &amp; rural areas</td>
                   <td className="px-4 py-3 font-medium">5–8 business days</td>
-                  <td className="px-4 py-3">Free above $499</td>
+                  <td className="px-4 py-3">Free above ₹499</td>
                 </tr>
               </tbody>
             </table>

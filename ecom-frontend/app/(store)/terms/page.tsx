@@ -37,7 +37,7 @@ export default function TermsPage() {
         <section>
           <h2 className="text-xl font-semibold text-gray-900 mb-3">3. Products and Pricing</h2>
           <ul className="list-disc pl-5 space-y-1">
-            <li>All prices are listed in US Dollars ($) and are inclusive of applicable taxes.</li>
+            <li>All prices are listed in Indian Rupees (₹) and are inclusive of applicable taxes.</li>
             <li>We reserve the right to change prices at any time without notice.</li>
             <li>Product images are for illustration purposes; actual items may vary slightly.</li>
             <li>We cannot guarantee that all products are always in stock.</li>

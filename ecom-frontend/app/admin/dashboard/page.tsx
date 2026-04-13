@@ -5,7 +5,7 @@ import { requireAdmin } from '@/lib/admin-auth'
 export const metadata = { title: 'Dashboard' }
 
 function formatPrice(amount: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount)
 }
 
 function StatusBadge({ status }: { status: string }) {

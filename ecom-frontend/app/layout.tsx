@@ -15,21 +15,21 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "My Store", template: "%s | My Store" },
-  description: "Shop the best products at the best prices. Free shipping on orders above $499.",
-  keywords: ["ecommerce", "shop", "online store", "buy online"],
-  authors: [{ name: "My Store" }],
+  title: { default: "Ganishka Collection", template: "%s | Ganishka Collection" },
+  description: "Shop the best products at the best prices. Free shipping on orders above ₹499.",
+  keywords: ["ecommerce", "shop", "online store", "buy online", "ganishka collection"],
+  authors: [{ name: "Atishay Jain" }],
   openGraph: {
     type: "website",
     locale: "en_IN",
     url: process.env.NEXT_PUBLIC_APP_URL,
-    siteName: "My Store",
-    title: "My Store",
+    siteName: "Ganishka Collection",
+    title: "Ganishka Collection",
     description: "Shop the best products at the best prices.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "My Store",
+    title: "Ganishka Collection",
     description: "Shop the best products at the best prices.",
   },
   robots: {

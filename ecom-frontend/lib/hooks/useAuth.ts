@@ -46,9 +46,9 @@ export function useAuth() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       const u = session?.user ?? null
-      // If the user changed (different account or logged out), clear the cart
-      // This prevents User A's cart from leaking into User B's session
-      if (u?.id !== activeUserIdRef.current) {
+      // Only clear cart when switching FROM an existing user TO a different one (or to logged-out).
+      // Guard: activeUserIdRef.current === null means this is the initial mount — don't clear.
+      if (activeUserIdRef.current !== null && u?.id !== activeUserIdRef.current) {
         useCartStore.getState().clearCart()
       }
       activeUserIdRef.current = u?.id ?? null

@@ -57,7 +57,7 @@ export default function Header({ categories }: { categories: any[] }) {
 
           {/* Logo */}
           <Link href="/" className="text-lg font-extrabold tracking-tight text-gray-900 shrink-0 hover:text-indigo-600 transition-colors duration-200">
-            Ganishka Collection
+            LayerFactory
           </Link>
 
           {/* Category nav (desktop) */}

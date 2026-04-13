@@ -44,7 +44,27 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params
   const category = await getCategoryBySlug(slug)
-  return { title: category?.name ?? 'Category' }
+  if (!category) return { title: 'Category Not Found' }
+  const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.layerfactory.in'
+  const title = `${category.name} — Buy Online | LayerFactory`
+  const description = `Shop ${category.name} products online at LayerFactory. Premium quality, free shipping above ₹499. Browse our full ${category.name} collection.`
+  const canonical = `${BASE_URL}/category/${slug}`
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      type: 'website',
+      siteName: 'LayerFactory',
+      ...(category.image_url && {
+        images: [{ url: category.image_url, width: 800, height: 400, alt: category.name }],
+      }),
+    },
+    twitter: { card: 'summary_large_image', title, description },
+  }
 }
 
 const getCategoryProducts = unstable_cache(
@@ -83,8 +103,21 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const { products, count } = await getCategoryProducts(category.id, sort, page)
   const totalPages = Math.ceil(count / PAGE_SIZE)
 
+  const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.layerfactory.in'
+  const categoryUrl = `${BASE_URL}/category/${slug}`
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home',     item: BASE_URL },
+      { '@type': 'ListItem', position: 2, name: 'Products', item: `${BASE_URL}/products` },
+      { '@type': 'ListItem', position: 3, name: category.name, item: categoryUrl },
+    ],
+  }
+
   return (
     <div className="max-w-350 mx-auto px-4 sm:px-6 lg:px-10 py-10">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       {/* Category header */}
       {category.image_url && (
         <div className="relative h-32 sm:h-44 rounded-2xl overflow-hidden mb-6 bg-gray-100">

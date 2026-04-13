@@ -174,7 +174,35 @@ export async function generateMetadata({ params }: Props) {
   const { slug } = await params
   const product = await getProduct(slug)
   if (!product) return { title: 'Product Not Found' }
-  return { title: product.name, description: product.description?.slice(0, 160) }
+
+  const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.layerfactory.in'
+  const title = product.name
+  const description = product.description?.slice(0, 160)
+    ?? `Buy ${product.name} online at LayerFactory. Best price ₹${product.price}. Free shipping above ₹499.`
+  const image = product.images?.[0]
+  const canonical = `${BASE_URL}/products/${slug}`
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      type: 'website',
+      siteName: 'LayerFactory',
+      ...(image && {
+        images: [{ url: image, width: 800, height: 800, alt: title }],
+      }),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      ...(image && { images: [image] }),
+    },
+  }
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -204,27 +232,69 @@ export default async function ProductDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-350 mx-auto px-4 sm:px-6 lg:px-10 py-6 md:py-10">
-      {/* Structured data */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Product',
-            name: product.name,
-            description: product.description,
-            image: images[0],
-            offers: {
-              '@type': 'Offer',
-              price: product.price,
-              priceCurrency: 'INR',
-              availability: product.stock > 0
-                ? 'https://schema.org/InStock'
-                : 'https://schema.org/OutOfStock',
+      {/* Structured data — Product + BreadcrumbList */}
+      {(() => {
+        const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.layerfactory.in'
+        const jsonLd = {
+          '@context': 'https://schema.org',
+          '@graph': [
+            {
+              '@type': 'Product',
+              '@id': `${BASE_URL}/products/${product.slug}#product`,
+              name: product.name,
+              description: product.description ?? undefined,
+              image: images.length > 0 ? images : undefined,
+              sku: product.id,
+              brand: { '@type': 'Brand', name: 'LayerFactory' },
+              offers: {
+                '@type': 'Offer',
+                url: `${BASE_URL}/products/${product.slug}`,
+                priceCurrency: 'INR',
+                price: product.price,
+                priceValidUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                availability: (product.stock ?? 1) > 0
+                  ? 'https://schema.org/InStock'
+                  : 'https://schema.org/OutOfStock',
+                seller: { '@type': 'Organization', name: 'LayerFactory' },
+                ...(product.compare_price ? {
+                  priceSpecification: {
+                    '@type': 'UnitPriceSpecification',
+                    price: product.price,
+                    priceCurrency: 'INR',
+                  },
+                } : {}),
+              },
+              ...(product.categories ? {
+                category: product.categories.name,
+              } : {}),
             },
-          }),
-        }}
-      />
+            {
+              '@type': 'BreadcrumbList',
+              itemListElement: [
+                { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE_URL}` },
+                { '@type': 'ListItem', position: 2, name: 'Products', item: `${BASE_URL}/products` },
+                ...(product.categories ? [{
+                  '@type': 'ListItem', position: 3,
+                  name: product.categories.name,
+                  item: `${BASE_URL}/category/${product.categories.slug}`,
+                }] : []),
+                {
+                  '@type': 'ListItem',
+                  position: product.categories ? 4 : 3,
+                  name: product.name,
+                  item: `${BASE_URL}/products/${product.slug}`,
+                },
+              ],
+            },
+          ],
+        }
+        return (
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          />
+        )
+      })()}
 
       {/* Breadcrumb */}
       <nav className="text-xs text-gray-400 mb-5 flex items-center gap-1.5 flex-wrap">

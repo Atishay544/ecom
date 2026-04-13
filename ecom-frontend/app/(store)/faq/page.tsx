@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import FaqClient, { FAQS } from './FaqClient'
+import FaqClient from './FaqClient'
+import { FAQS } from './faq-data'
 
 export const revalidate = 86400
 

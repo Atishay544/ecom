@@ -30,8 +30,9 @@ export default async function DashboardPage() {
   const supabase = createAdminClient()
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const todayStart    = new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
 
-  // All queries in parallel — single round trip each
+  // Typed queries (tables exist in generated schema)
   const [
     { data: allOrders },
     { count: newCustomers },
@@ -48,6 +49,17 @@ export default async function DashboardPage() {
       .order('created_at', { ascending: false }).limit(10),
   ])
 
+  // Untyped analytics tables — cast explicitly (not yet in generated types)
+  type PageViewRow = { session_id: string }
+  const [todayRes, monthRes, leadsRes] = await Promise.all([
+    supabase.from('page_views' as any).select('session_id').gte('created_at', todayStart),
+    supabase.from('page_views' as any).select('session_id').gte('created_at', thirtyDaysAgo),
+    supabase.from('leads' as any).select('id', { count: 'exact', head: true }),
+  ])
+  const todayViews  = (todayRes.data  ?? []) as PageViewRow[]
+  const allViews    = (monthRes.data  ?? []) as PageViewRow[]
+  const totalLeads  = leadsRes.count  ?? 0
+
   // Aggregate in JS — no extra round trips
   const statuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'] as const
   const orderCountsByStatus: Record<string, number> = Object.fromEntries(statuses.map(s => [s, 0]))
@@ -57,6 +69,11 @@ export default async function DashboardPage() {
     if (o.status === 'delivered') totalRevenue += Number(o.total)
   }
   const totalOrders = Object.values(orderCountsByStatus).reduce((a, b) => a + b, 0)
+
+  // Visitor stats — deduplicate by session_id in JS
+  const todayUniqueVisitors = new Set(todayViews.map(r => r.session_id)).size
+  const monthUniqueVisitors = new Set(allViews.map(r => r.session_id)).size
+  const leadsCount = totalLeads
 
   const profileMap = new Map(
     (recentOrders ?? []).map(o => {
@@ -81,6 +98,29 @@ export default async function DashboardPage() {
           <p className="text-2xl font-bold text-gray-900 mt-1">{totalOrders}</p>
           <p className="text-xs text-gray-400 mt-1">All statuses</p>
         </div>
+      </div>
+
+      {/* Visitor + Lead KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+          <p className="text-sm text-gray-500">Visitors Today</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{todayUniqueVisitors}</p>
+          <p className="text-xs text-gray-400 mt-1">Unique sessions since midnight</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+          <p className="text-sm text-gray-500">Visitors (30 days)</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{monthUniqueVisitors}</p>
+          <p className="text-xs text-gray-400 mt-1">Unique sessions last 30 days</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+          <p className="text-sm text-gray-500">Leads Captured</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{leadsCount}</p>
+          <p className="text-xs text-gray-400 mt-1"><a href="/admin/leads" className="text-blue-600 hover:underline">View leads →</a></p>
+        </div>
+      </div>
+
+      {/* Order KPI Cards (cont.) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
           <p className="text-sm text-gray-500">New Customers</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{newCustomers ?? 0}</p>

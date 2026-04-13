@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Image as ImageIcon,
   BadgePercent,
+  Mail,
 } from 'lucide-react'
 
 const navLinks = [
@@ -20,6 +21,7 @@ const navLinks = [
   { href: '/admin/products',       label: 'Products',        icon: Package },
   { href: '/admin/orders',         label: 'Orders',          icon: ShoppingCart },
   { href: '/admin/customers',      label: 'Customers',       icon: Users },
+  { href: '/admin/leads',          label: 'Leads',           icon: Mail },
   { href: '/admin/categories',     label: 'Categories',      icon: Tag },
   { href: '/admin/banners',        label: 'Banners',         icon: ImageIcon },
   { href: '/admin/offers',         label: 'Offers',          icon: BadgePercent },

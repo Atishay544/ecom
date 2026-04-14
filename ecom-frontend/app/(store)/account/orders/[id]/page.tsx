@@ -24,7 +24,7 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
     .select(`
       *,
       order_items(
-        id,quantity,price,
+        id,quantity,unit_price,
         products(name,slug,images)
       )
     `)
@@ -124,7 +124,7 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
                 </Link>
                 <p className="text-xs text-gray-500 mt-0.5">Qty: {item.quantity}</p>
               </div>
-              <p className="font-bold text-sm shrink-0">{formatPrice(item.price * item.quantity)}</p>
+              <p className="font-bold text-sm shrink-0">{formatPrice(item.unit_price * item.quantity)}</p>
             </div>
           ))}
         </div>

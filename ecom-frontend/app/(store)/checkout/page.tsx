@@ -48,6 +48,22 @@ export default function CheckoutPage() {
     fetch('/api/offers').then(r => r.json()).then(j => setOffers(j.data ?? []))
   }, [])
 
+  // Pre-fill address from last order (only if user hasn't typed anything yet)
+  useEffect(() => {
+    if (!user) return
+    getToken().then(token =>
+      fetch('/api/account/address', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(j => {
+          if (j.address) setAddress(prev => {
+            const isEmpty = Object.values(prev).every(v => v === '')
+            return isEmpty ? { ...EMPTY_ADDRESS, ...j.address } : prev
+          })
+        })
+        .catch(() => {})
+    )
+  }, [user])
+
   const subtotal   = total()
   const discount   = couponResult?.discount ?? 0
   const grandTotal = Math.max(0, subtotal - discount)

@@ -191,6 +191,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create order items' }, { status: 500 })
   }
 
+  // ── 7b. Save shipping address to user profile for future pre-fill ────────
+  admin.from('profiles')
+    .update({ saved_address: {
+      name:    shipping_address.name,
+      phone:   shipping_address.phone,
+      line1:   shipping_address.line1,
+      line2:   shipping_address.line2 ?? '',
+      city:    shipping_address.city,
+      state:   shipping_address.state,
+      pincode: shipping_address.pincode,
+    }})
+    .eq('id', user.id)
+    .then(() => {})  // fire-and-forget
+
   // ── 8. COD → done, no Razorpay needed ────────────────────────────────────
   if (payment_method === 'cod') {
     // Reserve stock immediately for COD orders

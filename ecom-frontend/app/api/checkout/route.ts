@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
   // ── 2. Parse + validate request body ─────────────────────────────────────
   const body = await req.json()
-  const { items, shipping_address, coupon_code } = body
+  const { items, shipping_address, coupon_code, offer_id } = body
 
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: 'Cart is empty' }, { status: 400 })
@@ -97,6 +97,32 @@ export async function POST(req: NextRequest) {
 
   const total = Math.max(0, subtotal - discount)
 
+  // ── 4b. Resolve COD upfront offer ─────────────────────────────────────────
+  // For cod_upfront offers: user pays X% online now; rest collected on delivery
+  let offerUpfrontPct: number | null = null
+  let offerDiscountPct: number | null = null
+  let validatedOfferId: string | null = null
+
+  if (offer_id) {
+    const { data: offer } = await admin
+      .from('offers')
+      .select('id, type, upfront_pct, discount_pct, is_active')
+      .eq('id', offer_id)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (offer && offer.type === 'cod_upfront' && offer.upfront_pct) {
+      offerUpfrontPct  = Number(offer.upfront_pct)
+      offerDiscountPct = Number(offer.discount_pct ?? 0)
+      validatedOfferId = offer.id
+    }
+  }
+
+  // Amount charged via Razorpay right now
+  const amountToCharge = offerUpfrontPct !== null
+    ? Math.round(total * offerUpfrontPct) / 100
+    : total
+
   // ── 5. Create order record in Supabase (status: pending) ──────────────────
   const { data: order, error: orderErr } = await admin
     .from('orders')
@@ -120,8 +146,14 @@ export async function POST(req: NextRequest) {
         state:   shipping_address.state,
         pincode: shipping_address.pincode,
       },
-      coupon_code: validatedCouponCode,
-      metadata:    {},
+      coupon_code:  validatedCouponCode,
+      metadata: validatedOfferId ? {
+        offer_id:         validatedOfferId,
+        offer_upfront_pct:  offerUpfrontPct,
+        offer_discount_pct: offerDiscountPct,
+        amount_charged:   amountToCharge,
+        amount_on_delivery: total - amountToCharge,
+      } : {},
     })
     .select('id')
     .single()
@@ -144,12 +176,20 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 7. Create Razorpay order ──────────────────────────────────────────────
-  // Razorpay amount is in paise (smallest currency unit) — multiply INR by 100
+  // For COD upfront offers, only charge the upfront portion online.
+  // Razorpay amount is in paise — multiply INR by 100.
   const razorpayOrder = await getRazorpay().orders.create({
-    amount:          Math.round(total * 100),
-    currency:        'INR',
-    receipt:         order.id.slice(0, 40),
-    notes:           { order_id: order.id, user_id: user.id },
+    amount:   Math.round(amountToCharge * 100),
+    currency: 'INR',
+    receipt:  order.id.slice(0, 40),
+    notes:    {
+      order_id:           order.id,
+      user_id:            user.id,
+      ...(offerUpfrontPct !== null && {
+        offer_upfront_pct:  String(offerUpfrontPct),
+        amount_on_delivery: String(total - amountToCharge),
+      }),
+    },
   })
 
   // ── 8. Store razorpay_order_id on the order ───────────────────────────────

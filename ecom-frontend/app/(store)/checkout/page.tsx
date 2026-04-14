@@ -72,6 +72,9 @@ export default function CheckoutPage() {
     }
   }
 
+  // Amount the user actually pays online right now
+  const payNow = codBreakdown ? codBreakdown.upfront : grandTotal
+
   async function handleCheckout() {
     if (!user) { router.push('/login?redirect=/checkout'); return }
     if (honeypotRef.current?.value) { setError('Something went wrong. Please try again.'); return }
@@ -90,6 +93,7 @@ export default function CheckoutPage() {
         items: items.map(i => ({ product_id: i.id, quantity: i.quantity, price: i.price })),
         shipping_address: address,
         coupon_code: couponResult?.code,
+        offer_id: selectedOffer?.id ?? null,
       }, { headers: { Authorization: `Bearer ${token}` } })
 
       const options = {
@@ -144,8 +148,11 @@ export default function CheckoutPage() {
           <div className="lg:col-span-3 space-y-6">
             <div className="border rounded-2xl p-6">
               <h2 className="font-semibold text-lg mb-4">Delivery Address</h2>
-              <input ref={honeypotRef} name="website" tabIndex={-1} autoComplete="off"
-                aria-hidden="true" className="absolute opacity-0 pointer-events-none h-0 w-0" />
+              {/* Honeypot — must stay empty; autofill-resistant name */}
+              <div style={{ display: 'none' }} aria-hidden="true">
+                <input ref={honeypotRef} name="lf_confirm_email" tabIndex={-1}
+                  autoComplete="new-password" readOnly />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Full Name" value={address.name} onChange={v => setAddress(a => ({ ...a, name: v }))} span={2} />
                 <Field label="Phone" value={address.phone} onChange={v => setAddress(a => ({ ...a, phone: v }))} />
@@ -276,7 +283,9 @@ export default function CheckoutPage() {
               {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
               <button onClick={handleCheckout} disabled={loading}
                 className="mt-4 w-full bg-black text-white py-3.5 rounded-xl font-semibold hover:bg-gray-800 transition disabled:opacity-50">
-                {loading ? 'Processing…' : `Pay ${formatPrice(grandTotal)}`}
+                {loading ? 'Processing…' : codBreakdown
+                  ? `Pay ${formatPrice(codBreakdown.upfront)} now + ${formatPrice(codBreakdown.discounted)} on delivery`
+                  : `Pay ${formatPrice(grandTotal)}`}
               </button>
               <p className="text-center text-xs text-gray-400 mt-3">Secured by Razorpay</p>
             </div>

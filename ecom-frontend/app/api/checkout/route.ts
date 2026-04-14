@@ -178,19 +178,28 @@ export async function POST(req: NextRequest) {
   // ── 7. Create Razorpay order ──────────────────────────────────────────────
   // For COD upfront offers, only charge the upfront portion online.
   // Razorpay amount is in paise — multiply INR by 100.
-  const razorpayOrder = await getRazorpay().orders.create({
-    amount:   Math.round(amountToCharge * 100),
-    currency: 'INR',
-    receipt:  order.id.slice(0, 40),
-    notes:    {
-      order_id:           order.id,
-      user_id:            user.id,
-      ...(offerUpfrontPct !== null && {
-        offer_upfront_pct:  String(offerUpfrontPct),
-        amount_on_delivery: String(total - amountToCharge),
-      }),
-    },
-  })
+  let razorpayOrder: { id: string; amount: number; currency: string }
+  try {
+    razorpayOrder = await getRazorpay().orders.create({
+      amount:   Math.round(amountToCharge * 100),
+      currency: 'INR',
+      receipt:  order.id.slice(0, 40),
+      notes:    {
+        order_id:           order.id,
+        user_id:            user.id,
+        ...(offerUpfrontPct !== null && {
+          offer_upfront_pct:  String(offerUpfrontPct),
+          amount_on_delivery: String(total - amountToCharge),
+        }),
+      },
+    })
+  } catch (rzpErr: any) {
+    // Clean up the pending order so the user can retry
+    await admin.from('orders').delete().eq('id', order.id)
+    console.error('Razorpay order creation failed:', rzpErr)
+    const msg = rzpErr?.error?.description ?? rzpErr?.message ?? 'Payment gateway error'
+    return NextResponse.json({ error: msg }, { status: 502 })
+  }
 
   // ── 8. Store razorpay_order_id on the order ───────────────────────────────
   await admin

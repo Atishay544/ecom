@@ -6,8 +6,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...options.headers,
     },
   })
-  const json = await res.json()
-  if (!res.ok) throw new Error(json?.error ?? json?.message ?? `Request failed: ${res.status}`)
+
+  // Safely parse JSON — server may return empty body or HTML on errors
+  let json: any = null
+  const text = await res.text()
+  if (text) {
+    try { json = JSON.parse(text) } catch { /* non-JSON response */ }
+  }
+
+  if (!res.ok) {
+    throw new Error(
+      json?.error ?? json?.message ?? `Request failed: ${res.status}`
+    )
+  }
   return json as T
 }
 

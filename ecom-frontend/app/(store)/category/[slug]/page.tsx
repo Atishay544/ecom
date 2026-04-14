@@ -38,7 +38,7 @@ export async function generateStaticParams() {
     .is('parent_id', null)
     .order('sort_order')
     .limit(12)
-  return (data ?? []).map(c => ({ slug: c.slug }))
+  return (data ?? []).filter(c => c.slug && c.slug.trim().length > 0).map(c => ({ slug: c.slug }))
 }
 
 export async function generateMetadata({ params }: Props) {

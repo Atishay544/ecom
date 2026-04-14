@@ -26,7 +26,14 @@ export async function generateStaticParams() {
     .select('slug')
     .eq('is_active', true)
     .order('created_at', { ascending: false })
-  return (data ?? []).map(p => ({ slug: p.slug }))
+  // Filter out invalid slugs — dot slugs create /products/. which Next.js
+  // resolves to /products, conflicting with the listing page (build mismatch error)
+  return (data ?? [])
+    .filter(p => {
+      const s = (p.slug ?? '').trim()
+      return s.length > 0 && s !== '.' && s !== '..' && !s.includes('/') && !s.startsWith('.')
+    })
+    .map(p => ({ slug: p.slug }))
 }
 
 interface Props { params: Promise<{ slug: string }> }

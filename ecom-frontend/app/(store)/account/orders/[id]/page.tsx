@@ -1,4 +1,5 @@
 import { requireUser } from '@/lib/user-auth'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -17,9 +18,10 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
   const { id } = await params
   const { success, payment } = await searchParams
 
-  const { user, supabase } = await requireUser('/login')
+  const { user } = await requireUser('/login')
 
-  const { data: order } = await supabase
+  const admin = createAdminClient()
+  const { data: order, error: orderErr } = await admin
     .from('orders')
     .select(`
       *,
@@ -31,6 +33,8 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
+
+  if (orderErr) console.error('Order detail error:', orderErr)
 
   if (!order) notFound()
 

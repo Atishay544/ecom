@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
+import { sendOrderConfirmation, sendNewOrderAlert } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
   // ── 1. Authenticate user ──────────────────────────────────────────────────
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const { data: order, error: orderErr } = await admin
     .from('orders')
-    .select('id, status, coupon_code, razorpay_order_id, user_id')
+    .select('id, status, coupon_code, razorpay_order_id, user_id, total, discount_amount, subtotal, metadata, shipping_address, order_items(unit_price, quantity, snapshot)')
     .eq('id', order_id)
     .eq('user_id', user.id)
     .single()
@@ -56,10 +57,14 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 5. Confirm order + store payment ID ───────────────────────────────────
+  // cod_upfront gets its own status so admin knows upfront is paid, COD balance due on delivery
+  const meta          = ((order as any).metadata ?? {}) as Record<string, any>
+  const confirmedStatus = meta.payment_method === 'cod_upfront' ? 'cod_upfront_paid' : 'confirmed'
+
   const { error: updateErr } = await admin
     .from('orders')
     .update({
-      status:               'confirmed',
+      status:               confirmedStatus,
       razorpay_payment_id:  razorpay_payment_id,
       updated_at:           new Date().toISOString(),
     })
@@ -93,6 +98,42 @@ export async function POST(req: NextRequest) {
       )
     )
   }
+
+  // ── 8. Send confirmation emails (fire-and-forget) ────────────────────────
+  try {
+    const meta = (order.metadata ?? {}) as Record<string, any>
+    const pm   = meta.payment_method as string ?? 'online'
+    const addr = order.shipping_address as Record<string, string> ?? {}
+    const emailItems = ((order as any).order_items ?? []).map((i: any) => ({
+      name:       i.snapshot?.name ?? '—',
+      quantity:   i.quantity,
+      unit_price: Number(i.unit_price),
+    }))
+    const authData = await admin.auth.admin.getUserById(user.id)
+    const email    = authData.data.user?.email ?? ''
+
+    sendOrderConfirmation({
+      to:               email,
+      orderId:          order.id,
+      items:            emailItems,
+      subtotal:         Number((order as any).subtotal ?? 0),
+      discount:         Number((order as any).discount_amount ?? 0),
+      total:            Number((order as any).total ?? 0),
+      paymentMethod:    pm as any,
+      amountCharged:    meta.amount_charged ? Number(meta.amount_charged) : undefined,
+      amountOnDelivery: meta.amount_on_delivery ? Number(meta.amount_on_delivery) : undefined,
+      shippingAddress:  addr,
+    }).catch(() => {})
+
+    sendNewOrderAlert({
+      orderId:        order.id,
+      customerEmail:  email,
+      items:          emailItems,
+      total:          Number((order as any).total ?? 0),
+      paymentMethod:  pm === 'cod_upfront' ? 'COD Upfront' : 'Paid Online',
+      shippingAddress: addr,
+    }).catch(() => {})
+  } catch { /* email is non-fatal */ }
 
   return NextResponse.json({ success: true })
 }

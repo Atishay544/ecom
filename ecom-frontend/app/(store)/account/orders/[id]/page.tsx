@@ -40,7 +40,9 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
 
   const meta       = (order.metadata ?? {}) as Record<string, any>
   const pmMethod   = meta.payment_method as string | undefined
-  const currentStep = STEPS.indexOf(order.status)
+  // cod_upfront_paid maps to the same position as 'confirmed' in the progress bar
+  const displayStatus = order.status === 'cod_upfront_paid' ? 'confirmed' : order.status
+  const currentStep   = STEPS.indexOf(displayStatus)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">

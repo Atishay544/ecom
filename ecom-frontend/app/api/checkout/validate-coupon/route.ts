@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const minOrder = Number(coupon.min_order ?? 0)
   if (subtotal < minOrder) {
     return NextResponse.json(
-      { error: `Minimum order of $${minOrder.toFixed(2)} required for this coupon` },
+      { error: `Minimum order of ₹${minOrder.toLocaleString('en-IN')} required for this coupon` },
       { status: 400 }
     )
   }

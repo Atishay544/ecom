@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Razorpay from 'razorpay'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
+import { sendOrderConfirmation, sendNewOrderAlert } from '@/lib/email'
 
 type PaymentMethod = 'online' | 'cod' | 'cod_upfront'
 
@@ -216,6 +217,32 @@ export async function POST(req: NextRequest) {
     if (validatedCouponCode) {
       await admin.rpc('increment_coupon_uses', { p_code: validatedCouponCode }).catch(() => {})
     }
+
+    // Send confirmation emails (fire-and-forget)
+    const emailItems = lineItems.map(li => ({
+      name:       (li.snapshot as any).name,
+      quantity:   li.quantity,
+      unit_price: li.unit_price,
+    }))
+    sendOrderConfirmation({
+      to:              user.email!,
+      orderId:         order.id,
+      items:           emailItems,
+      subtotal,
+      discount,
+      total,
+      paymentMethod:   'cod',
+      shippingAddress: shipping_address,
+    }).catch(() => {})
+    sendNewOrderAlert({
+      orderId:         order.id,
+      customerEmail:   user.email!,
+      items:           emailItems,
+      total,
+      paymentMethod:   'Cash on Delivery',
+      shippingAddress: shipping_address,
+    }).catch(() => {})
+
     return NextResponse.json({ order_id: order.id, payment_method: 'cod' })
   }
 

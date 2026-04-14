@@ -3,6 +3,8 @@ import Razorpay from 'razorpay'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
 
+type PaymentMethod = 'online' | 'cod' | 'cod_upfront'
+
 // Lazily instantiated — avoids build-time crash when env vars are absent
 function getRazorpay() {
   return new Razorpay({
@@ -12,28 +14,36 @@ function getRazorpay() {
 }
 
 export async function POST(req: NextRequest) {
-  // ── 1. Authenticate user via Bearer token ─────────────────────────────────
-  const authHeader = req.headers.get('Authorization') ?? ''
-  const token = authHeader.replace('Bearer ', '').trim()
+  // ── 1. Authenticate ───────────────────────────────────────────────────────
+  const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '').trim()
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const supabase = await createServerClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token)
   if (authErr || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // ── 2. Parse + validate request body ─────────────────────────────────────
+  // ── 2. Parse body ─────────────────────────────────────────────────────────
   const body = await req.json()
-  const { items, shipping_address, coupon_code, offer_id } = body
+  const {
+    items,
+    shipping_address,
+    coupon_code,
+    payment_method = 'online' as PaymentMethod,
+    offer_id,
+  } = body
 
-  if (!Array.isArray(items) || items.length === 0) {
+  if (!Array.isArray(items) || items.length === 0)
     return NextResponse.json({ error: 'Cart is empty' }, { status: 400 })
-  }
+
   const requiredAddr = ['name', 'phone', 'line1', 'city', 'state', 'pincode'] as const
   for (const f of requiredAddr) {
-    if (!shipping_address?.[f]?.trim()) {
+    if (!shipping_address?.[f]?.trim())
       return NextResponse.json({ error: `Missing address field: ${f}` }, { status: 400 })
-    }
   }
+
+  const validPaymentMethods: PaymentMethod[] = ['online', 'cod', 'cod_upfront']
+  if (!validPaymentMethods.includes(payment_method))
+    return NextResponse.json({ error: 'Invalid payment method' }, { status: 400 })
 
   // ── 3. Validate products + compute subtotal ───────────────────────────────
   const admin = createAdminClient()
@@ -45,9 +55,8 @@ export async function POST(req: NextRequest) {
     .in('id', productIds)
     .eq('is_active', true)
 
-  if (prodErr || !products || products.length !== productIds.length) {
+  if (prodErr || !products || products.length !== productIds.length)
     return NextResponse.json({ error: 'One or more products are unavailable' }, { status: 400 })
-  }
 
   const productMap = new Map(products.map(p => [p.id, p]))
   let subtotal = 0
@@ -56,9 +65,8 @@ export async function POST(req: NextRequest) {
   for (const item of items) {
     const product = productMap.get(item.product_id)
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 400 })
-    if (product.stock !== null && product.stock < item.quantity) {
+    if (product.stock !== null && product.stock < item.quantity)
       return NextResponse.json({ error: `Insufficient stock for: ${product.name}` }, { status: 400 })
-    }
     const lineTotal = product.price * item.quantity
     subtotal += lineTotal
     lineItems.push({
@@ -70,7 +78,7 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // ── 4. Apply coupon discount ──────────────────────────────────────────────
+  // ── 4. Apply coupon ───────────────────────────────────────────────────────
   let discount = 0
   let validatedCouponCode: string | null = null
 
@@ -97,13 +105,12 @@ export async function POST(req: NextRequest) {
 
   const total = Math.max(0, subtotal - discount)
 
-  // ── 4b. Resolve COD upfront offer ─────────────────────────────────────────
-  // For cod_upfront offers: user pays X% online now; rest collected on delivery
+  // ── 4b. Resolve COD upfront offer (only for cod_upfront method) ───────────
   let offerUpfrontPct: number | null = null
   let offerDiscountPct: number | null = null
   let validatedOfferId: string | null = null
 
-  if (offer_id) {
+  if (payment_method === 'cod_upfront' && offer_id) {
     const { data: offer } = await admin
       .from('offers')
       .select('id, type, upfront_pct, discount_pct, is_active')
@@ -118,17 +125,33 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Amount charged via Razorpay right now
-  const amountToCharge = offerUpfrontPct !== null
+  const amountToCharge = (payment_method === 'cod_upfront' && offerUpfrontPct !== null)
     ? Math.round(total * offerUpfrontPct) / 100
     : total
 
-  // ── 5. Create order record in Supabase (status: pending) ──────────────────
+  // ── 5. Build order metadata ───────────────────────────────────────────────
+  const orderMetadata: Record<string, any> = { payment_method }
+
+  if (payment_method === 'cod_upfront' && validatedOfferId) {
+    orderMetadata.offer_id           = validatedOfferId
+    orderMetadata.offer_upfront_pct  = offerUpfrontPct
+    orderMetadata.offer_discount_pct = offerDiscountPct
+    orderMetadata.amount_charged     = amountToCharge
+    orderMetadata.amount_on_delivery = total - amountToCharge
+  }
+  if (payment_method === 'cod') {
+    orderMetadata.amount_on_delivery = total
+  }
+
+  // ── 6. Create order in Supabase ───────────────────────────────────────────
+  // COD orders are confirmed immediately (no payment pending)
+  const initialStatus = payment_method === 'cod' ? 'confirmed' : 'pending'
+
   const { data: order, error: orderErr } = await admin
     .from('orders')
     .insert({
       user_id:          user.id,
-      status:           'pending',
+      status:           initialStatus,
       subtotal,
       subtotal_amount:  subtotal,
       discount_amount:  discount,
@@ -146,14 +169,8 @@ export async function POST(req: NextRequest) {
         state:   shipping_address.state,
         pincode: shipping_address.pincode,
       },
-      coupon_code:  validatedCouponCode,
-      metadata: validatedOfferId ? {
-        offer_id:         validatedOfferId,
-        offer_upfront_pct:  offerUpfrontPct,
-        offer_discount_pct: offerDiscountPct,
-        amount_charged:   amountToCharge,
-        amount_on_delivery: total - amountToCharge,
-      } : {},
+      coupon_code: validatedCouponCode,
+      metadata:    orderMetadata,
     })
     .select('id')
     .single()
@@ -163,45 +180,55 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create order' }, { status: 500 })
   }
 
-  // ── 6. Insert order line items ────────────────────────────────────────────
+  // ── 7. Insert order line items ────────────────────────────────────────────
   const { error: itemsErr } = await admin
     .from('order_items')
     .insert(lineItems.map(li => ({ ...li, order_id: order.id })))
 
   if (itemsErr) {
-    // Clean up orphaned order
     await admin.from('orders').delete().eq('id', order.id)
     console.error('Order items insert error:', itemsErr)
     return NextResponse.json({ error: 'Failed to create order items' }, { status: 500 })
   }
 
-  // ── 7. Create Razorpay order ──────────────────────────────────────────────
-  // For COD upfront offers, only charge the upfront portion online.
-  // Razorpay amount is in paise — multiply INR by 100.
+  // ── 8. COD → done, no Razorpay needed ────────────────────────────────────
+  if (payment_method === 'cod') {
+    // Reserve stock immediately for COD orders
+    await Promise.allSettled(
+      lineItems.map(li =>
+        admin.rpc('reserve_stock', { p_product_id: li.product_id, p_quantity: li.quantity })
+      )
+    )
+    if (validatedCouponCode) {
+      await admin.rpc('increment_coupon_uses', { p_code: validatedCouponCode }).catch(() => {})
+    }
+    return NextResponse.json({ order_id: order.id, payment_method: 'cod' })
+  }
+
+  // ── 9. Online / COD-upfront → create Razorpay order ──────────────────────
   let razorpayOrder: { id: string; amount: number; currency: string }
   try {
     razorpayOrder = await getRazorpay().orders.create({
       amount:   Math.round(amountToCharge * 100),
       currency: 'INR',
       receipt:  order.id.slice(0, 40),
-      notes:    {
-        order_id:           order.id,
-        user_id:            user.id,
-        ...(offerUpfrontPct !== null && {
+      notes: {
+        order_id:        order.id,
+        user_id:         user.id,
+        payment_method,
+        ...(payment_method === 'cod_upfront' && offerUpfrontPct !== null && {
           offer_upfront_pct:  String(offerUpfrontPct),
           amount_on_delivery: String(total - amountToCharge),
         }),
       },
     })
   } catch (rzpErr: any) {
-    // Clean up the pending order so the user can retry
     await admin.from('orders').delete().eq('id', order.id)
     console.error('Razorpay order creation failed:', rzpErr)
-    const msg = rzpErr?.error?.description ?? rzpErr?.message ?? 'Payment gateway error'
+    const msg = rzpErr?.error?.description ?? rzpErr?.message ?? 'Payment gateway error. Please try again.'
     return NextResponse.json({ error: msg }, { status: 502 })
   }
 
-  // ── 8. Store razorpay_order_id on the order ───────────────────────────────
   await admin
     .from('orders')
     .update({ razorpay_order_id: razorpayOrder.id })
@@ -209,6 +236,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     order_id:       order.id,
+    payment_method,
     razorpay_order: {
       id:       razorpayOrder.id,
       amount:   razorpayOrder.amount,

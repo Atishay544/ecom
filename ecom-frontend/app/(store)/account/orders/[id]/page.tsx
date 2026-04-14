@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { formatPrice } from '@/lib/utils'
-import { CheckCircle2, XCircle } from 'lucide-react'
+import { CheckCircle2, XCircle, CreditCard, Truck, Zap } from 'lucide-react'
 import InvoiceDownload from './InvoiceDownload'
 
 interface Props {
@@ -34,6 +34,8 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
 
   if (!order) notFound()
 
+  const meta       = (order.metadata ?? {}) as Record<string, any>
+  const pmMethod   = meta.payment_method as string | undefined
   const currentStep = STEPS.indexOf(order.status)
 
   return (
@@ -59,7 +61,24 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
       )}
 
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <h1 className="text-2xl font-bold">Order #{order.id.slice(0, 8).toUpperCase()}</h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-2xl font-bold">Order #{order.id.slice(0, 8).toUpperCase()}</h1>
+          {pmMethod === 'cod' && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+              <Truck size={11} /> Cash on Delivery
+            </span>
+          )}
+          {pmMethod === 'online' && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              <CreditCard size={11} /> Paid Online
+            </span>
+          )}
+          {pmMethod === 'cod_upfront' && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              <Zap size={11} /> COD Upfront Offer
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           <InvoiceDownload order={{ ...order, customer: null }} />
           <Link href="/account/orders" className="text-sm text-gray-500 hover:underline">← All Orders</Link>
@@ -122,6 +141,24 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
             <div className="flex justify-between font-bold border-t pt-2 mt-2">
               <span>Total</span><span>{formatPrice(order.total_amount)}</span>
             </div>
+            {pmMethod === 'cod_upfront' && meta.amount_charged && (
+              <>
+                <div className="flex justify-between text-blue-700 border-t pt-2 mt-2">
+                  <span>Paid upfront ({meta.offer_upfront_pct}%)</span>
+                  <span className="font-semibold">{formatPrice(Number(meta.amount_charged))}</span>
+                </div>
+                <div className="flex justify-between text-orange-700">
+                  <span>Due on delivery</span>
+                  <span className="font-semibold">{formatPrice(Number(meta.amount_on_delivery))}</span>
+                </div>
+              </>
+            )}
+            {pmMethod === 'cod' && (
+              <div className="flex justify-between text-orange-700 border-t pt-2 mt-2">
+                <span>Pay on delivery</span>
+                <span className="font-semibold">{formatPrice(order.total_amount)}</span>
+              </div>
+            )}
           </div>
         </div>
 

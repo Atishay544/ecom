@@ -67,7 +67,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         {ALL_STATUSES.map(s => (
           <Link
             key={s}
-            href={`/orders?status=${s}`}
+            href={`/admin/orders?status=${s}`}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${statusFilter === s ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}
           >
             {s}
@@ -93,7 +93,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
               {orders?.map(order => (
                 <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <Link href={`/orders/${order.id}`} className="font-mono text-blue-600 hover:underline text-xs font-medium">
+                    <Link href={`/admin/orders/${order.id}`} className="font-mono text-blue-600 hover:underline text-xs font-medium">
                       #{order.id.slice(0, 8).toUpperCase()}
                     </Link>
                   </td>
@@ -101,7 +101,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
                     {profileMap.get(order.user_id) ?? <span className="text-gray-400 italic">Unknown</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-gray-900">
-                    ${Number(order.total).toLocaleString('en-US')}
+                    ₹{Number(order.total).toLocaleString('en-IN')}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-700'}`}>
@@ -113,7 +113,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
-                      href={`/orders/${order.id}`}
+                      href={`/admin/orders/${order.id}`}
                       className="text-xs text-blue-600 hover:underline"
                     >
                       View
@@ -137,10 +137,10 @@ export default async function OrdersPage({ searchParams }: PageProps) {
             </p>
             <div className="flex gap-2">
               {page > 1 && (
-                <Link href={`/orders?status=${statusFilter}&page=${page - 1}`} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Previous</Link>
+                <Link href={`/admin/orders?status=${statusFilter}&page=${page - 1}`} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Previous</Link>
               )}
               {page < totalPages && (
-                <Link href={`/orders?status=${statusFilter}&page=${page + 1}`} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Next</Link>
+                <Link href={`/admin/orders?status=${statusFilter}&page=${page + 1}`} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Next</Link>
               )}
             </div>
           </div>

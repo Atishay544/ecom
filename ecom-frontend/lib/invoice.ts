@@ -39,7 +39,7 @@ export interface InvoiceOrder {
 }
 
 function fmt(n: number) {
-  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 export async function downloadInvoicePDF(order: InvoiceOrder) {
@@ -59,7 +59,7 @@ export async function downloadInvoicePDF(order: InvoiceOrder) {
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(18)
   doc.setFont('helvetica', 'bold')
-  doc.text('STORE', 14, 12)
+  doc.text('Layers Factory', 14, 12)
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
   doc.text('support@aitalk247.com  |  orders@aitalk247.com', 14, 18)
@@ -192,8 +192,8 @@ export async function downloadInvoicePDF(order: InvoiceOrder) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(130, 130, 130)
-  doc.text('Thank you for shopping with us!', 14, footerY)
-  doc.text('Returns accepted within 30 days — see store.com/refund-policy', 14, footerY + 5)
+  doc.text('Thank you for shopping with Layers Factory!', 14, footerY)
+  doc.text('Returns accepted within 30 days — layerfactory.in/refund-policy', 14, footerY + 5)
   doc.text(`Generated on ${new Date().toLocaleString('en-US')}`, pageW - 14, footerY, { align: 'right' })
 
   doc.save(`invoice-${orderId}.pdf`)

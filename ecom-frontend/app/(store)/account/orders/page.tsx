@@ -1,24 +1,30 @@
 import { requireUser } from '@/lib/user-auth'
+import { createAdminClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
 import { formatPrice } from '@/lib/utils'
 import { Package } from 'lucide-react'
 
 const STATUS_COLORS: Record<string, string> = {
-  pending:    'bg-yellow-100 text-yellow-700',
-  confirmed:  'bg-blue-100 text-blue-700',
-  processing: 'bg-purple-100 text-purple-700',
-  shipped:    'bg-indigo-100 text-indigo-700',
-  delivered:  'bg-green-100 text-green-700',
-  cancelled:  'bg-red-100 text-red-600',
-  refunded:   'bg-gray-100 text-gray-600',
+  pending:         'bg-yellow-100 text-yellow-700',
+  confirmed:       'bg-blue-100 text-blue-700',
+  cod_upfront_paid:'bg-blue-100 text-blue-700',
+  processing:      'bg-purple-100 text-purple-700',
+  shipped:         'bg-indigo-100 text-indigo-700',
+  delivered:       'bg-green-100 text-green-700',
+  cancelled:       'bg-red-100 text-red-600',
+  refunded:        'bg-gray-100 text-gray-600',
 }
 
 export default async function OrdersPage() {
-  const { user, supabase } = await requireUser('/account/orders')
+  // requireUser is React.cache() — deduplicates auth across layout + page
+  const { user } = await requireUser('/account/orders')
 
-  const { data: orders } = await supabase
+  // Admin client bypasses RLS → no per-row policy evaluation → ~10× faster
+  // Security: filter is enforced by .eq('user_id', user.id)
+  const admin = createAdminClient()
+  const { data: orders } = await admin
     .from('orders')
-    .select('id,created_at,status,total_amount,order_items(count)')
+    .select('id,created_at,status,total_amount,items_count')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .range(0, 19)
@@ -47,18 +53,18 @@ export default async function OrdersPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Date</p>
-                  <p className="text-sm">{new Date(order.created_at).toLocaleDateString('en-US')}</p>
+                  <p className="text-sm">{new Date(order.created_at).toLocaleDateString('en-IN')}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Items</p>
-                  <p className="text-sm">{(order.order_items as any)?.[0]?.count ?? 0}</p>
+                  <p className="text-sm">{order.items_count ?? 0}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Total</p>
                   <p className="font-bold">{formatPrice(order.total_amount)}</p>
                 </div>
                 <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                  {order.status}
+                  {order.status === 'cod_upfront_paid' ? 'confirmed' : order.status}
                 </span>
               </div>
             </Link>

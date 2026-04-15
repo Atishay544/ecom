@@ -19,7 +19,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [otp, setOtp] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
-  const [step, setStep] = useState<'input' | 'otp'>('input')
+  const [step, setStep] = useState<'input' | 'otp' | 'check-email'>('input')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
@@ -30,7 +30,7 @@ export default function LoginPage() {
   }, [])
 
   function switchTab(t: Tab) {
-    setTab(t); setStep('input'); setError(''); setTurnstileToken('')
+    setTab(t); setStep('input'); setError(''); setIsSignUp(false); setTurnstileToken('')
   }
 
   async function handleGoogle() {
@@ -43,12 +43,26 @@ export default function LoginPage() {
 
   async function handlePasswordAuth() {
     setLoading(true); setError('')
-    const { error } = isSignUp
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
-    if (error) return setError(error.message)
-    router.push('/')
+    if (isSignUp) {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${location.origin}/auth/callback` },
+      })
+      setLoading(false)
+      if (error) return setError(error.message)
+      // If email confirmation is required, session will be null
+      if (!data.session) {
+        setStep('check-email')
+        return
+      }
+      router.push('/')
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      setLoading(false)
+      if (error) return setError(error.message)
+      router.push('/')
+    }
   }
 
   async function handleEmailOtp() {
@@ -119,13 +133,15 @@ export default function LoginPage() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
             <div className="text-center mb-7">
               <h1 className="text-xl font-bold text-gray-900">
-                {tab === 'password' && (isSignUp ? 'Create account' : 'Welcome back')}
+                {tab === 'password' && step === 'check-email' && 'Almost there!'}
+                {tab === 'password' && step !== 'check-email' && (isSignUp ? 'Create account' : 'Welcome back')}
                 {tab === 'google'   && 'Sign in'}
                 {tab === 'email'    && 'Magic link'}
                 {tab === 'phone'    && 'Phone sign in'}
               </h1>
               <p className="text-sm text-gray-500 mt-1">
-                {tab === 'password' && (isSignUp ? 'Fill in your details below' : 'Sign in to your account')}
+                {tab === 'password' && step === 'check-email' && 'Verify your email to continue'}
+                {tab === 'password' && step !== 'check-email' && (isSignUp ? 'Fill in your details below' : 'Sign in to your account')}
                 {tab === 'google'   && 'Use your Google account'}
                 {tab === 'email'    && 'Get a one-time link by email'}
                 {tab === 'phone'    && 'Get an OTP on your phone'}
@@ -167,7 +183,7 @@ export default function LoginPage() {
             )}
 
             {/* ── Email + Password ── */}
-            {tab === 'password' && (
+            {tab === 'password' && step === 'input' && (
               <div className="space-y-3">
                 <input type="email" placeholder="Email address" value={email}
                   onChange={e => setEmail(e.target.value)} className={inputCls} />
@@ -180,6 +196,32 @@ export default function LoginPage() {
                 <button onClick={() => { setIsSignUp(s => !s); setError('') }}
                   className="w-full text-center text-xs text-gray-500 hover:text-gray-800 transition pt-1">
                   {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+                </button>
+              </div>
+            )}
+
+            {/* ── Check email (after sign up with confirmation required) ── */}
+            {tab === 'password' && step === 'check-email' && (
+              <div className="space-y-4 text-center">
+                <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mx-auto">
+                  <svg className="w-7 h-7 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Check your inbox</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    We sent a verification link to<br />
+                    <span className="font-medium text-gray-800">{email}</span>
+                  </p>
+                </div>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Click the link in the email to verify your account. You'll be signed in automatically — no need to fill anything again.
+                </p>
+                <button
+                  onClick={() => { setStep('input'); setError(''); setPassword('') }}
+                  className="w-full text-xs text-gray-400 hover:text-gray-600 transition pt-1">
+                  ← Use a different email
                 </button>
               </div>
             )}

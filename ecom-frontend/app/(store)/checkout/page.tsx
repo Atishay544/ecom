@@ -49,19 +49,18 @@ export default function CheckoutPage() {
   }, [])
 
   // Pre-fill address from last order (only if user hasn't typed anything yet)
+  // Cookies are sent automatically on same-origin requests — no token needed
   useEffect(() => {
     if (!user) return
-    getToken().then(token =>
-      fetch('/api/account/address', { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json())
-        .then(j => {
-          if (j.address) setAddress(prev => {
-            const isEmpty = Object.values(prev).every(v => v === '')
-            return isEmpty ? { ...EMPTY_ADDRESS, ...j.address } : prev
-          })
+    fetch('/api/account/address')
+      .then(r => r.json())
+      .then(j => {
+        if (j.address) setAddress(prev => {
+          const isEmpty = Object.values(prev).every(v => v === '')
+          return isEmpty ? { ...EMPTY_ADDRESS, ...j.address } : prev
         })
-        .catch(() => {})
-    )
+      })
+      .catch(() => {})
   }, [user])
 
   const subtotal   = total()

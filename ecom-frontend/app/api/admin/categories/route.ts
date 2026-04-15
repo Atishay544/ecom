@@ -31,6 +31,28 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ data })
 }
 
+export async function PATCH(req: NextRequest) {
+  const admin = await requireAdmin()
+  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const body = await req.json()
+  const { id, name, slug, parent_id, sort_order } = body
+  if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+
+  const payload: Record<string, any> = {}
+  if (name       !== undefined) payload.name       = name
+  if (slug       !== undefined) payload.slug       = slug
+  if (sort_order !== undefined) payload.sort_order = parseInt(sort_order, 10) || 0
+  // Allow null to clear parent
+  if ('parent_id' in body) payload.parent_id = parent_id ?? null
+
+  const { data, error } = await admin.from('categories').update(payload).eq('id', id).select().single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  revalidateTag('categories')
+  revalidateTag('products')
+  return NextResponse.json({ data })
+}
+
 export async function DELETE(req: NextRequest) {
   const admin = await requireAdmin()
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

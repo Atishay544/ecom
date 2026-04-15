@@ -43,7 +43,14 @@ export default async function CategoriesPage() {
                     {(cat.categories as any)?.name ?? '—'}
                   </td>
                   <td className="px-5 py-3 text-right">
-                    <CategoryActions categoryId={cat.id} categoryName={cat.name} />
+                    <CategoryActions
+                      categoryId={cat.id}
+                      categoryName={cat.name}
+                      categorySlug={cat.slug}
+                      parentId={cat.parent_id ?? null}
+                      sortOrder={cat.sort_order ?? 0}
+                      categories={categories?.map(c => ({ id: c.id, name: c.name })) ?? []}
+                    />
                   </td>
                 </tr>
               ))}

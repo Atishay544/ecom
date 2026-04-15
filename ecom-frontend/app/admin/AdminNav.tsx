@@ -14,21 +14,23 @@ import {
   Image as ImageIcon,
   BadgePercent,
   Mail,
+  Truck,
 } from 'lucide-react'
 
 const navLinks = [
-  { href: '/admin/dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
-  { href: '/admin/products',       label: 'Products',        icon: Package },
-  { href: '/admin/orders',         label: 'Orders',          icon: ShoppingCart },
-  { href: '/admin/customers',      label: 'Customers',       icon: Users },
-  { href: '/admin/leads',          label: 'Leads',           icon: Mail },
-  { href: '/admin/categories',     label: 'Categories',      icon: Tag },
-  { href: '/admin/banners',        label: 'Banners',         icon: ImageIcon },
-  { href: '/admin/offers',         label: 'Offers',          icon: BadgePercent },
-  { href: '/admin/coupons',        label: 'Coupons',         icon: Ticket },
-  { href: '/admin/announcements',  label: 'Announcements',   icon: Megaphone },
-  { href: '/admin/reviews',        label: 'Reviews',         icon: Star },
-  { href: '/admin/chat',           label: 'Chat Support',    icon: MessageSquare },
+  { href: '/admin/dashboard',          label: 'Dashboard',      icon: LayoutDashboard },
+  { href: '/admin/products',           label: 'Products',        icon: Package },
+  { href: '/admin/orders',             label: 'Orders',          icon: ShoppingCart },
+  { href: '/admin/delivery-partners',  label: 'Delivery',        icon: Truck },
+  { href: '/admin/customers',          label: 'Customers',       icon: Users },
+  { href: '/admin/leads',              label: 'Leads',           icon: Mail },
+  { href: '/admin/categories',         label: 'Categories',      icon: Tag },
+  { href: '/admin/banners',            label: 'Banners',         icon: ImageIcon },
+  { href: '/admin/offers',             label: 'Offers',          icon: BadgePercent },
+  { href: '/admin/coupons',            label: 'Coupons',         icon: Ticket },
+  { href: '/admin/announcements',      label: 'Announcements',   icon: Megaphone },
+  { href: '/admin/reviews',            label: 'Reviews',         icon: Star },
+  { href: '/admin/chat',               label: 'Chat Support',    icon: MessageSquare },
 ]
 
 export default function AdminNav() {

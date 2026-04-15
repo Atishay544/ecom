@@ -51,14 +51,16 @@ export default async function DashboardPage() {
 
   // Untyped analytics tables — cast explicitly (not yet in generated types)
   type PageViewRow = { session_id: string }
-  const [todayRes, monthRes, leadsRes] = await Promise.all([
+  const [todayRes, monthRes, leadsRes, deliveryPartnersRes] = await Promise.all([
     supabase.from('page_views' as any).select('session_id').gte('created_at', todayStart),
     supabase.from('page_views' as any).select('session_id').gte('created_at', thirtyDaysAgo),
     supabase.from('leads' as any).select('id', { count: 'exact', head: true }),
+    supabase.from('delivery_partners' as any).select('id', { count: 'exact', head: true }).eq('is_active', true),
   ])
-  const todayViews  = (todayRes.data  ?? []) as PageViewRow[]
-  const allViews    = (monthRes.data  ?? []) as PageViewRow[]
-  const totalLeads  = leadsRes.count  ?? 0
+  const todayViews         = (todayRes.data  ?? []) as PageViewRow[]
+  const allViews           = (monthRes.data  ?? []) as PageViewRow[]
+  const totalLeads         = leadsRes.count  ?? 0
+  const activePartnerCount = deliveryPartnersRes.count ?? 0
 
   // Aggregate in JS — no extra round trips
   const statuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'] as const
@@ -145,6 +147,46 @@ export default async function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* Delivery Partners Setup Card */}
+      {activePartnerCount === 0 ? (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 mb-8">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">🚚</span>
+            <div className="flex-1">
+              <h2 className="text-sm font-semibold text-yellow-800">Delivery Partners Not Configured</h2>
+              <p className="text-xs text-yellow-700 mt-1 mb-3">
+                Set up Delhivery, DTDC, or BlueDart to get live shipping rates and assign couriers directly from order pages.
+              </p>
+              <ol className="text-xs text-yellow-700 space-y-1 list-decimal list-inside mb-3">
+                <li>Go to Delivery Partners and click "Add Partner"</li>
+                <li>Select your courier (Delhivery / DTDC / BlueDart)</li>
+                <li>Enter your API key and pickup pincode</li>
+                <li>Rates will appear on each order page automatically</li>
+              </ol>
+              <a
+                href="/admin/delivery-partners"
+                className="inline-flex items-center px-3 py-1.5 bg-yellow-800 text-yellow-50 rounded-lg text-xs font-medium hover:bg-yellow-900 transition-colors"
+              >
+                Configure Delivery Partners →
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-5 mb-8">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🚚</span>
+            <div>
+              <h2 className="text-sm font-semibold text-green-800">Delivery Partners Ready</h2>
+              <p className="text-xs text-green-700 mt-0.5">
+                {activePartnerCount} active partner{activePartnerCount !== 1 ? 's' : ''} configured.{' '}
+                <a href="/admin/delivery-partners" className="underline hover:text-green-900">Manage →</a>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Low Stock */}

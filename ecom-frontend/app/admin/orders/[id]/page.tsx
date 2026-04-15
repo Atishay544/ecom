@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/admin-auth'
 import OrderDetailActions from './OrderDetailActions'
 import InvoiceButton from './InvoiceButton'
+import DeliveryPanel from './DeliveryPanel'
+import PrintButton from './PrintButton'
 
 export const metadata = { title: 'Order Detail' }
 
@@ -34,6 +36,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
       id, status, subtotal, tax, shipping, total, tracking_number,
       shipping_address, created_at, updated_at, user_id,
       discount_amount, metadata,
+      delivery_partner, delivery_awb, delivery_rate, delivery_service,
       order_items(id, quantity, unit_price, total, snapshot)
     `)
     .eq('id', id)
@@ -48,9 +51,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
     .single()
 
   // Fetch email via admin client (service role bypasses RLS)
-  const { createAdminClient } = await import('@/lib/supabase/admin')
-  const adminSupabase = createAdminClient()
-  const { data: authUser } = await adminSupabase.auth.admin.getUserById(order.user_id)
+  const { data: authUser } = await supabase.auth.admin.getUserById(order.user_id)
   const customerEmail = authUser?.user?.email ?? null
 
   const address  = order.shipping_address as any
@@ -79,10 +80,13 @@ export default async function OrderDetailPage({ params }: PageProps) {
             </span>
           )}
         </div>
-        <InvoiceButton order={{
-          ...order,
-          customer: { full_name: customer?.full_name ?? undefined, email: customerEmail ?? undefined, phone: customer?.phone ?? undefined },
-        }} />
+        <div className="flex items-center gap-2">
+          <PrintButton />
+          <InvoiceButton order={{
+            ...order,
+            customer: { full_name: customer?.full_name ?? undefined, email: customerEmail ?? undefined, phone: customer?.phone ?? undefined },
+          }} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -158,6 +162,17 @@ export default async function OrderDetailPage({ params }: PageProps) {
             currentStatus={order.status}
             currentTracking={order.tracking_number ?? ''}
           />
+
+          {/* Delivery / Shipping Panel */}
+          <DeliveryPanel
+            orderId={order.id}
+            toPin={address?.pincode ?? address?.zip ?? ''}
+            totalAmount={Number(order.total)}
+            currentPartner={(order as any).delivery_partner ?? null}
+            currentAwb={(order as any).delivery_awb ?? null}
+            currentRate={(order as any).delivery_rate ?? null}
+            currentService={(order as any).delivery_service ?? null}
+          />
         </div>
 
         {/* Sidebar: Customer + Address */}
@@ -165,6 +180,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h2 className="text-sm font-semibold text-gray-800 mb-3">Customer</h2>
             <p className="text-sm text-gray-700 font-medium">{customer?.full_name ?? '—'}</p>
+            {customerEmail && <p className="text-sm text-gray-500 mt-1">{customerEmail}</p>}
             {customer?.phone && <p className="text-sm text-gray-500 mt-1">{customer.phone}</p>}
             <p className="text-xs text-gray-400 mt-2">
               Ordered {new Date(order.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
@@ -174,13 +190,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h2 className="text-sm font-semibold text-gray-800 mb-3">Shipping Address</h2>
             <div className="text-sm text-gray-600 space-y-0.5">
-              {address?.full_name && <p className="font-medium text-gray-700">{address.full_name}</p>}
+              {(address?.name || address?.full_name) && (
+                <p className="font-medium text-gray-700">{address.name ?? address.full_name}</p>
+              )}
+              {address?.phone && <p className="text-gray-500">{address.phone}</p>}
               {address?.line1 && <p>{address.line1}</p>}
               {address?.line2 && <p>{address.line2}</p>}
               {address?.city && <p>{address.city}{address.state ? `, ${address.state}` : ''}</p>}
-              {address?.zip && <p>{address.zip}</p>}
+              {(address?.pincode || address?.zip) && <p>{address.pincode ?? address.zip}</p>}
               {address?.country && <p>{address.country}</p>}
-              {address?.phone && <p className="mt-1 text-gray-500">{address.phone}</p>}
             </div>
           </div>
 

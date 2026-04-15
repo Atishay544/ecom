@@ -19,7 +19,7 @@ export default async function EditProductPage({ params }: PageProps) {
 
   const [{ data: product }, { data: categories }, { data: variantRows }] = await Promise.all([
     admin.from('products')
-      .select('id, name, slug, description, price, compare_price, stock, category_id, is_active, images, video_url')
+      .select('id, name, slug, description, price, compare_price, stock, weight_grams, category_id, is_active, images, video_url')
       .eq('id', id).single(),
     admin.from('categories').select('id, name').order('name'),
     admin.from('product_variants').select('id, name, options').eq('product_id', id),
@@ -46,6 +46,7 @@ export default async function EditProductPage({ params }: PageProps) {
           description:   product.description ?? null,
           compare_price: product.compare_price ? Number(product.compare_price) : null,
           price:         Number(product.price),
+          weight_grams:  product.weight_grams ? Number(product.weight_grams) : 500,
           images:        product.images ?? [],
           video_url:     product.video_url ?? null,
         }}

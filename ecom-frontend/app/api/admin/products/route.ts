@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       price:         parseFloat(productData.price),
       compare_price: productData.compare_price ? parseFloat(productData.compare_price) : null,
       stock:         parseInt(productData.stock, 10),
+      weight_grams:  parseInt(productData.weight_grams, 10) || 500,
       category_id:   productData.category_id || null,
       is_active:     productData.is_active ?? true,
       images:        productData.images ?? [],
@@ -75,6 +76,7 @@ export async function PATCH(req: NextRequest) {
   if (fields.price         !== undefined) payload.price         = parseFloat(fields.price)
   if (fields.compare_price !== undefined) payload.compare_price = fields.compare_price ? parseFloat(fields.compare_price) : null
   if (fields.stock         !== undefined) payload.stock         = parseInt(fields.stock, 10)
+  if (fields.weight_grams  !== undefined) payload.weight_grams  = parseInt(fields.weight_grams, 10) || 500
   if (fields.category_id   !== undefined) payload.category_id   = fields.category_id || null
   if (fields.is_active     !== undefined) payload.is_active     = fields.is_active
   if (fields.images        !== undefined) payload.images        = fields.images

@@ -17,6 +17,7 @@ interface Product {
   price: number
   compare_price: number | null
   stock: number
+  weight_grams: number | null
   category_id: string | null
   is_active: boolean
   images: string[]
@@ -46,6 +47,7 @@ export default function ProductForm({ product, categories, initialVariants = [] 
   const [price, setPrice]           = useState(String(product?.price ?? ''))
   const [comparePrice, setCompare]  = useState(String(product?.compare_price ?? ''))
   const [stock, setStock]           = useState(String(product?.stock ?? '0'))
+  const [weight, setWeight]         = useState(String(product?.weight_grams ?? '500'))
   const [categoryId, setCategoryId] = useState(product?.category_id ?? '')
   const [isActive, setIsActive]     = useState(product?.is_active ?? true)
   const [images, setImages]         = useState<string[]>(product?.images ?? [])
@@ -95,6 +97,7 @@ export default function ProductForm({ product, categories, initialVariants = [] 
       price:         parseFloat(price),
       compare_price: comparePrice ? parseFloat(comparePrice) : null,
       stock:         parseInt(stock, 10),
+      weight_grams:  parseInt(weight, 10) || 500,
       category_id:   categoryId || null,
       is_active:     isActive,
       images,
@@ -189,6 +192,13 @@ export default function ProductForm({ product, categories, initialVariants = [] 
                 <input type="number" min="0" step="1" value={stock}
                   onChange={e => setStock(e.target.value)} required
                   className={INPUT} />
+              </div>
+              <div>
+                <label className={LABEL}>Weight (grams) *</label>
+                <input type="number" min="1" step="1" value={weight}
+                  onChange={e => setWeight(e.target.value)} required
+                  className={INPUT} placeholder="e.g. 500" />
+                <p className="text-[11px] text-gray-400 mt-1">Used for shipping rate calculation</p>
               </div>
               <div>
                 <label className={LABEL}>Category</label>

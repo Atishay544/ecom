@@ -35,7 +35,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
     .select(`
       id, status, subtotal, tax, shipping, total, tracking_number,
       shipping_address, created_at, updated_at, user_id,
-      discount_amount, metadata,
+      discount_amount, metadata, payment_status,
       delivery_partner, delivery_awb, delivery_rate, delivery_service,
       order_items(id, quantity, unit_price, total, snapshot)
     `)
@@ -64,6 +64,13 @@ export default async function OrderDetailPage({ params }: PageProps) {
     cod_upfront: { label: 'COD Upfront',      color: 'bg-green-100 text-green-800' },
   }
 
+  const PS_LABELS: Record<string, { label: string; color: string }> = {
+    prepaid: { label: 'Prepaid',  color: 'bg-emerald-100 text-emerald-800' },
+    cod:     { label: 'COD',      color: 'bg-amber-100 text-amber-800' },
+    partial: { label: 'Partial',  color: 'bg-purple-100 text-purple-800' },
+  }
+  const paymentStatus = (order as any).payment_status as string | undefined
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -77,6 +84,11 @@ export default async function OrderDetailPage({ params }: PageProps) {
           {pmMethod && PM_LABELS[pmMethod] && (
             <span className={`ml-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${PM_LABELS[pmMethod].color}`}>
               {PM_LABELS[pmMethod].label}
+            </span>
+          )}
+          {paymentStatus && PS_LABELS[paymentStatus] && (
+            <span className={`ml-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${PS_LABELS[paymentStatus].color}`}>
+              {PS_LABELS[paymentStatus].label}
             </span>
           )}
         </div>

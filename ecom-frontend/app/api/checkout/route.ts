@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
   const { data: products, error: prodErr } = await admin
     .from('products')
-    .select('id, name, price, stock, images, slug')
+    .select('id, name, price, stock, images, slug, weight_grams')
     .in('id', productIds)
     .eq('is_active', true)
 
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       quantity:   item.quantity,
       unit_price: product.price,
       total:      lineTotal,
-      snapshot:   { name: product.name, price: product.price, image: product.images?.[0] ?? null, slug: product.slug },
+      snapshot:   { name: product.name, price: product.price, image: product.images?.[0] ?? null, slug: product.slug, weight_grams: (product as any).weight_grams ?? 500 },
     })
   }
 
@@ -146,7 +146,8 @@ export async function POST(req: NextRequest) {
 
   // ── 6. Create order in Supabase ───────────────────────────────────────────
   // COD orders are confirmed immediately (no payment pending)
-  const initialStatus = payment_method === 'cod' ? 'confirmed' : 'pending'
+  const initialStatus    = payment_method === 'cod' ? 'confirmed' : 'pending'
+  const paymentStatus    = payment_method === 'cod' ? 'cod' : payment_method === 'cod_upfront' ? 'partial' : 'prepaid'
 
   const { data: order, error: orderErr } = await admin
     .from('orders')
@@ -170,8 +171,9 @@ export async function POST(req: NextRequest) {
         state:   shipping_address.state,
         pincode: shipping_address.pincode,
       },
-      coupon_code: validatedCouponCode,
-      metadata:    orderMetadata,
+      coupon_code:     validatedCouponCode,
+      metadata:        orderMetadata,
+      payment_status:  paymentStatus,
     })
     .select('id')
     .single()

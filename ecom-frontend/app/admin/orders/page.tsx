@@ -39,7 +39,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
   let query = supabase
     .from('orders')
-    .select('id, total, status, created_at, user_id', { count: 'exact' })
+    .select('id, total, status, payment_status, created_at, user_id', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to)
 

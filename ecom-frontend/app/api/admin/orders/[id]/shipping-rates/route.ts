@@ -43,17 +43,25 @@ export async function GET(req: NextRequest, { params }: PageProps) {
 
   const { id } = await params
 
-  // Fetch order shipping address
+  // Fetch order with items + product weights
   const { data: order } = await admin
     .from('orders')
-    .select('shipping_address, total')
+    .select('shipping_address, total, order_items(quantity, snapshot)')
     .eq('id', id)
     .single()
 
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
 
-  const address = order.shipping_address as any
-  const toPin = address?.pincode ?? address?.zip ?? ''
+  const address = (order as any).shipping_address as any
+  const toPin   = address?.pincode ?? address?.zip ?? ''
+
+  // Calculate total shipment weight from product snapshots (fallback 500g per item)
+  const orderItems = (order as any).order_items ?? []
+  const totalWeightGrams = orderItems.reduce((sum: number, item: any) => {
+    const wPerUnit = item.snapshot?.weight_grams ?? 500
+    return sum + (wPerUnit * item.quantity)
+  }, 0)
+  const weightKg = Math.max(0.5, totalWeightGrams / 1000)
 
   // Fetch all active delivery partners
   const { data: partners } = await admin
@@ -68,7 +76,7 @@ export async function GET(req: NextRequest, { params }: PageProps) {
     for (const rates of Object.values(MOCK_RATES)) {
       allRates.push(...rates)
     }
-    return NextResponse.json({ rates: allRates, toPin })
+    return NextResponse.json({ rates: allRates, toPin, weightKg })
   }
 
   for (const partner of partners as any[]) {
@@ -99,7 +107,7 @@ export async function GET(req: NextRequest, { params }: PageProps) {
         // Delhivery rate fetch (simplified — their actual rate API requires pickup pincode)
         const pickupPin = partner.pickup_pincode ?? '400001'
         const rateRes = await fetch(
-          `https://track.delhivery.com/api/kinko/v0.2/pickup/pincode_availability/?md=S&ss=Delivered&d_pin=${toPin}&o_pin=${pickupPin}&cgm=500&pt=Pre-paid&cod=0`,
+          `https://track.delhivery.com/api/kinko/v0.2/pickup/pincode_availability/?md=S&ss=Delivered&d_pin=${toPin}&o_pin=${pickupPin}&cgm=${Math.round(weightKg * 1000)}&pt=Pre-paid&cod=0`,
           {
             headers: { Authorization: `Token ${partner.api_key}`, 'Content-Type': 'application/json' },
             signal: AbortSignal.timeout(5000),
@@ -124,7 +132,7 @@ export async function GET(req: NextRequest, { params }: PageProps) {
       } else if (slug === 'dtdc') {
         // DTDC rate API
         const dtdcRes = await fetch(
-          `https://blktapi.dtdc.com/rateCal/api/v1/rate-calculator?origin=${partner.pickup_pincode ?? '400001'}&destination=${toPin}&paymentMode=P&productType=NDX&weight=0.5`,
+          `https://blktapi.dtdc.com/rateCal/api/v1/rate-calculator?origin=${partner.pickup_pincode ?? '400001'}&destination=${toPin}&paymentMode=P&productType=NDX&weight=${weightKg.toFixed(2)}`,
           {
             headers: { 'Client-Id': partner.account_code ?? '', 'Authorization': `Bearer ${partner.api_key}`, 'Content-Type': 'application/json' },
             signal: AbortSignal.timeout(5000),
@@ -161,5 +169,5 @@ export async function GET(req: NextRequest, { params }: PageProps) {
     }
   }
 
-  return NextResponse.json({ rates: allRates, toPin })
+  return NextResponse.json({ rates: allRates, toPin, weightKg })
 }

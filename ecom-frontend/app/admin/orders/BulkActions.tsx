@@ -18,9 +18,17 @@ interface Order {
   id: string
   total: number
   status: string
+  payment_status: string | null
+  metadata: Record<string, any> | null
   created_at: string
   user_id: string
   customerName: string | null
+}
+
+const PM_BADGES: Record<string, { label: string; cls: string }> = {
+  online:      { label: 'Online',      cls: 'bg-blue-100 text-blue-700' },
+  cod:         { label: 'COD',         cls: 'bg-orange-100 text-orange-700' },
+  cod_upfront: { label: 'COD Upfront', cls: 'bg-teal-100 text-teal-700' },
 }
 
 interface Props {
@@ -131,6 +139,7 @@ export default function BulkActions({ initialOrders, statusFilter, searchQuery }
                 <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Customer</th>
                 <th className="text-right px-4 py-3 text-xs text-gray-500 font-medium">Total</th>
                 <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Status</th>
+                <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Payment</th>
                 <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Date</th>
                 <th className="text-right px-4 py-3 text-xs text-gray-500 font-medium">Actions</th>
               </tr>
@@ -162,6 +171,15 @@ export default function BulkActions({ initialOrders, statusFilter, searchQuery }
                       {order.status}
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    {(() => {
+                      const pm = (order.metadata as any)?.payment_method as string | undefined
+                      const badge = pm ? PM_BADGES[pm] : null
+                      return badge
+                        ? <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badge.cls}`}>{badge.label}</span>
+                        : <span className="text-gray-300 text-xs">—</span>
+                    })()}
+                  </td>
                   <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
                     {new Date(order.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
                   </td>
@@ -174,7 +192,7 @@ export default function BulkActions({ initialOrders, statusFilter, searchQuery }
               ))}
               {displayed.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-gray-400">No orders found.</td>
+                  <td colSpan={8} className="py-12 text-center text-gray-400">No orders found.</td>
                 </tr>
               )}
             </tbody>

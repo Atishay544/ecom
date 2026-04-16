@@ -2,11 +2,6 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import Script from 'next/script'
-
-declare global {
-  interface Window { onTurnstileVerify?: (token: string) => void }
-}
 
 type Tab = 'google' | 'password' | 'email' | 'phone'
 
@@ -22,15 +17,8 @@ export default function LoginPage() {
   const [step, setStep] = useState<'input' | 'otp' | 'check-email'>('input')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [turnstileToken, setTurnstileToken] = useState('')
-
-  useEffect(() => {
-    window.onTurnstileVerify = (token: string) => setTurnstileToken(token)
-    return () => { delete window.onTurnstileVerify }
-  }, [])
-
   function switchTab(t: Tab) {
-    setTab(t); setStep('input'); setError(''); setIsSignUp(false); setTurnstileToken('')
+    setTab(t); setStep('input'); setError(''); setIsSignUp(false)
   }
 
   async function handleGoogle() {
@@ -66,7 +54,6 @@ export default function LoginPage() {
   }
 
   async function handleEmailOtp() {
-    if (!turnstileToken) { setError('Please complete the verification.'); return }
     setLoading(true); setError('')
     const { error } = await supabase.auth.signInWithOtp({ email })
     setLoading(false)
@@ -83,7 +70,6 @@ export default function LoginPage() {
   }
 
   async function handlePhoneOtp() {
-    if (!turnstileToken) { setError('Please complete the verification.'); return }
     setLoading(true); setError('')
     const formatted = phone.startsWith('+') ? phone : `+91${phone}`
     const { error } = await supabase.auth.signInWithOtp({ phone: formatted })
@@ -125,7 +111,6 @@ export default function LoginPage() {
 
   return (
     <>
-      <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="lazyOnload" />
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="w-full max-w-sm">
 
@@ -231,10 +216,7 @@ export default function LoginPage() {
               <div className="space-y-3">
                 <input type="email" placeholder="Email address" value={email}
                   onChange={e => setEmail(e.target.value)} className={inputCls} />
-                <div className="flex justify-center">
-                  <div className="cf-turnstile" data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} data-callback="onTurnstileVerify" />
-                </div>
-                <button onClick={handleEmailOtp} disabled={loading || !email || !turnstileToken}
+                <button onClick={handleEmailOtp} disabled={loading || !email}
                   className={btnPrimary}>
                   {loading ? 'Sending…' : 'Send magic link'}
                 </button>
@@ -264,10 +246,7 @@ export default function LoginPage() {
                     onChange={e => setPhone(e.target.value)}
                     className="flex-1 px-4 py-3 text-sm bg-white outline-none" maxLength={10} />
                 </div>
-                <div className="flex justify-center">
-                  <div className="cf-turnstile" data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} data-callback="onTurnstileVerify" />
-                </div>
-                <button onClick={handlePhoneOtp} disabled={loading || phone.length < 10 || !turnstileToken}
+                <button onClick={handlePhoneOtp} disabled={loading || phone.length < 10}
                   className={btnPrimary}>
                   {loading ? 'Sending…' : 'Send OTP'}
                 </button>

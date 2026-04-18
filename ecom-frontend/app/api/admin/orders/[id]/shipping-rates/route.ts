@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
+import { getDelhiveryRates } from '@/lib/delhivery'
 
 async function requireAdmin() {
   const supabase = await createServerClient()
@@ -13,29 +14,7 @@ async function requireAdmin() {
   return admin
 }
 
-interface MockRate {
-  partner_id: string
-  partner_name: string
-  service: string
-  estimated_days: string
-  rate: number
-  is_mock: boolean
-}
-
-const MOCK_RATES: Record<string, MockRate[]> = {
-  delhivery: [
-    { partner_id: 'delhivery', partner_name: 'Delhivery', service: 'Express', estimated_days: '2-3 days', rate: 85, is_mock: true },
-    { partner_id: 'delhivery', partner_name: 'Delhivery', service: 'Surface', estimated_days: '5-7 days', rate: 60, is_mock: true },
-  ],
-  dtdc: [
-    { partner_id: 'dtdc', partner_name: 'DTDC', service: 'Express', estimated_days: '2-3 days', rate: 90, is_mock: true },
-    { partner_id: 'dtdc', partner_name: 'DTDC', service: 'Economy', estimated_days: '4-6 days', rate: 65, is_mock: true },
-  ],
-}
-
-interface PageProps {
-  params: Promise<{ id: string }>
-}
+interface PageProps { params: Promise<{ id: string }> }
 
 export async function GET(req: NextRequest, { params }: PageProps) {
   const admin = await requireAdmin()
@@ -43,131 +22,56 @@ export async function GET(req: NextRequest, { params }: PageProps) {
 
   const { id } = await params
 
-  // Fetch order with items + product weights
   const { data: order } = await admin
     .from('orders')
-    .select('shipping_address, total, order_items(quantity, snapshot)')
+    .select('shipping_address, total, metadata, order_items(quantity, snapshot)')
     .eq('id', id)
     .single()
 
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
 
-  const address = (order as any).shipping_address as any
-  const toPin   = address?.pincode ?? address?.zip ?? ''
+  const addr      = (order as any).shipping_address as Record<string, string> ?? {}
+  const meta      = ((order as any).metadata ?? {}) as Record<string, any>
+  const toPin     = addr.pincode ?? addr.zip ?? ''
+  const fromPin   = process.env.DELHIVERY_PICKUP_PINCODE ?? ''
+  const isCOD     = meta.payment_method === 'cod' || meta.payment_method === 'cod_upfront'
 
-  // Calculate total shipment weight from product snapshots (fallback 500g per item)
   const orderItems = (order as any).order_items ?? []
-  const totalWeightGrams = orderItems.reduce((sum: number, item: any) => {
-    const wPerUnit = item.snapshot?.weight_grams ?? 500
-    return sum + (wPerUnit * item.quantity)
+  const weightGrams = orderItems.reduce((sum: number, item: any) => {
+    return sum + ((item.snapshot?.weight_grams ?? 500) * (item.quantity ?? 1))
   }, 0)
-  const weightKg = Math.max(0.5, totalWeightGrams / 1000)
+  const weightKg = Math.max(0.5, weightGrams / 1000)
 
-  // Fetch all active delivery partners
-  const { data: partners } = await admin
-    .from('delivery_partners' as any)
-    .select('*')
-    .eq('is_active', true)
+  const hasToken = !!process.env.DELHIVERY_API_TOKEN
 
-  const allRates: MockRate[] = []
-
-  if (!partners || partners.length === 0) {
-    // No partners configured — return all mock rates
-    for (const rates of Object.values(MOCK_RATES)) {
-      allRates.push(...rates)
-    }
-    return NextResponse.json({ rates: allRates, toPin, weightKg })
+  type RateRow = {
+    partner_id: string; partner_name: string; service: string
+    estimated_days: string; rate: number; is_mock: boolean
   }
 
-  for (const partner of partners as any[]) {
-    const slug = partner.name?.toLowerCase()
-    const hasCredentials = partner.api_key && partner.api_key.length > 5
+  const rates: RateRow[] = []
 
-    if (!hasCredentials) {
-      // Return mock rates for this partner
-      const mocks = MOCK_RATES[slug]
-      if (mocks) {
-        allRates.push(...mocks.map(r => ({ ...r, partner_id: partner.id, partner_name: partner.display_name })))
-      } else {
-        allRates.push({
-          partner_id: partner.id,
-          partner_name: partner.display_name,
-          service: 'Standard',
-          estimated_days: '3-5 days',
-          rate: 75,
-          is_mock: true,
-        })
-      }
-      continue
-    }
+  if (hasToken && toPin && fromPin) {
+    const result = await getDelhiveryRates(fromPin, toPin, weightGrams, isCOD)
 
-    // Real API calls (with credentials)
-    try {
-      if (slug === 'delhivery') {
-        // Delhivery rate fetch (simplified — their actual rate API requires pickup pincode)
-        const pickupPin = partner.pickup_pincode ?? '400001'
-        const rateRes = await fetch(
-          `https://track.delhivery.com/api/kinko/v0.2/pickup/pincode_availability/?md=S&ss=Delivered&d_pin=${toPin}&o_pin=${pickupPin}&cgm=${Math.round(weightKg * 1000)}&pt=Pre-paid&cod=0`,
-          {
-            headers: { Authorization: `Token ${partner.api_key}`, 'Content-Type': 'application/json' },
-            signal: AbortSignal.timeout(5000),
-          }
-        )
-        if (rateRes.ok) {
-          const rateData = await rateRes.json()
-          const surfaceRate = rateData?.data?.surface_rate ?? null
-          const expressRate = rateData?.data?.express_rate ?? null
-          if (expressRate) {
-            allRates.push({ partner_id: partner.id, partner_name: partner.display_name, service: 'Express', estimated_days: '2-3 days', rate: expressRate, is_mock: false })
-          }
-          if (surfaceRate) {
-            allRates.push({ partner_id: partner.id, partner_name: partner.display_name, service: 'Surface', estimated_days: '5-7 days', rate: surfaceRate, is_mock: false })
-          }
-          if (!expressRate && !surfaceRate) {
-            allRates.push(...MOCK_RATES.delhivery!.map(r => ({ ...r, partner_id: partner.id, partner_name: partner.display_name })))
-          }
-        } else {
-          allRates.push(...MOCK_RATES.delhivery!.map(r => ({ ...r, partner_id: partner.id, partner_name: partner.display_name })))
-        }
-      } else if (slug === 'dtdc') {
-        // DTDC rate API
-        const dtdcRes = await fetch(
-          `https://blktapi.dtdc.com/rateCal/api/v1/rate-calculator?origin=${partner.pickup_pincode ?? '400001'}&destination=${toPin}&paymentMode=P&productType=NDX&weight=${weightKg.toFixed(2)}`,
-          {
-            headers: { 'Client-Id': partner.account_code ?? '', 'Authorization': `Bearer ${partner.api_key}`, 'Content-Type': 'application/json' },
-            signal: AbortSignal.timeout(5000),
-          }
-        )
-        if (dtdcRes.ok) {
-          const dtdcData = await dtdcRes.json()
-          const charges = dtdcData?.responseBody?.charges ?? []
-          charges.forEach((c: any) => {
-            allRates.push({ partner_id: partner.id, partner_name: partner.display_name, service: c.product ?? 'Standard', estimated_days: '3-5 days', rate: c.totalCharge ?? 75, is_mock: false })
-          })
-          if (charges.length === 0) {
-            allRates.push(...MOCK_RATES.dtdc!.map(r => ({ ...r, partner_id: partner.id, partner_name: partner.display_name })))
-          }
-        } else {
-          allRates.push(...MOCK_RATES.dtdc!.map(r => ({ ...r, partner_id: partner.id, partner_name: partner.display_name })))
-        }
-      } else {
-        allRates.push({
-          partner_id: partner.id,
-          partner_name: partner.display_name,
-          service: 'Standard',
-          estimated_days: '3-5 days',
-          rate: 75,
-          is_mock: true,
-        })
+    if (result.serviceable) {
+      if (result.express !== null) {
+        rates.push({ partner_id: 'delhivery', partner_name: 'Delhivery', service: 'Express', estimated_days: '2-3 days', rate: result.express, is_mock: false })
       }
-    } catch {
-      // API call failed — fall back to mock rates
-      const mocks = MOCK_RATES[slug]
-      if (mocks) {
-        allRates.push(...mocks.map(r => ({ ...r, partner_id: partner.id, partner_name: partner.display_name })))
+      if (result.surface !== null) {
+        rates.push({ partner_id: 'delhivery', partner_name: 'Delhivery', service: 'Surface', estimated_days: '5-7 days', rate: result.surface, is_mock: false })
       }
+    } else {
+      // Pincode not serviceable
+      return NextResponse.json({ rates: [], toPin, weightKg, error: `Pincode ${toPin} not serviceable by Delhivery` })
     }
+  } else {
+    // No token or pincode — return mock rates
+    rates.push(
+      { partner_id: 'delhivery', partner_name: 'Delhivery', service: 'Express', estimated_days: '2-3 days', rate: 85, is_mock: true },
+      { partner_id: 'delhivery', partner_name: 'Delhivery', service: 'Surface', estimated_days: '5-7 days', rate: 60, is_mock: true },
+    )
   }
 
-  return NextResponse.json({ rates: allRates, toPin, weightKg })
+  return NextResponse.json({ rates, toPin, weightKg })
 }

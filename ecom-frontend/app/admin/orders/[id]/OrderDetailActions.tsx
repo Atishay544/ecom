@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserClient } from '@supabase/ssr'
 
 const ALL_STATUSES = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded']
 
@@ -19,29 +18,23 @@ export default function OrderDetailActions({ orderId, currentStatus, currentTrac
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-
   async function handleSave() {
     setSaving(true)
     setMessage('')
-    const { error } = await supabase
-      .from('orders')
-      .update({
-        status,
-        tracking_number: tracking.trim() || null,
-        updated_at: new Date().toISOString(),
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, tracking_number: tracking }),
       })
-      .eq('id', orderId)
-
-    setSaving(false)
-    if (error) {
-      setMessage(`Error: ${error.message}`)
-    } else {
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Save failed')
       setMessage('Saved successfully.')
       router.refresh()
+    } catch (e: any) {
+      setMessage(`Error: ${e.message}`)
+    } finally {
+      setSaving(false)
     }
   }
 

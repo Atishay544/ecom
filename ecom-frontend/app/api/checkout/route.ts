@@ -3,6 +3,8 @@ import Razorpay from 'razorpay'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
 import { sendOrderConfirmation, sendNewOrderAlert } from '@/lib/email'
+import { rateLimit } from '@/lib/security/rate-limit'
+import { assertSameOrigin } from '@/lib/security/csrf'
 
 type PaymentMethod = 'online' | 'cod' | 'cod_upfront'
 
@@ -15,6 +17,12 @@ function getRazorpay() {
 }
 
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
+  const limited = await rateLimit(req, 'checkout')
+  if (limited) return limited
+
   // ── 1. Authenticate ───────────────────────────────────────────────────────
   const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '').trim()
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

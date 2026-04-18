@@ -1,26 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-
-// Simple in-memory rate limit: 3 requests per IP per hour
-const rateMap = new Map<string, { count: number; reset: number }>()
-
-function checkRate(ip: string): boolean {
-  const now = Date.now()
-  const entry = rateMap.get(ip)
-  if (!entry || now > entry.reset) {
-    rateMap.set(ip, { count: 1, reset: now + 3600_000 })
-    return true
-  }
-  if (entry.count >= 3) return false
-  entry.count++
-  return true
-}
+import { rateLimit } from '@/lib/security/rate-limit'
+import { assertSameOrigin } from '@/lib/security/csrf'
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown'
-  if (!checkRate(ip)) {
-    return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
-  }
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
+  const limited = await rateLimit(req, 'contact')
+  if (limited) return limited
 
   let body: any
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }

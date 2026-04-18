@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
+import { rateLimit } from '@/lib/security/rate-limit'
+import { assertSameOrigin } from '@/lib/security/csrf'
 
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
+  const limited = await rateLimit(req, 'default')
+  if (limited) return limited
+
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Login required to submit a review.' }, { status: 401 })

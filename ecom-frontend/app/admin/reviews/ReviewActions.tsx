@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserClient } from '@supabase/ssr'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 
 interface Props {
@@ -16,34 +15,31 @@ export default function ReviewActions({ reviewId, isApproved, isRejected }: Prop
   const [loading, setLoading] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-
   async function approve() {
     setLoading(true)
-    await supabase
-      .from('reviews')
-      .update({ is_approved: true, is_rejected: false })
-      .eq('id', reviewId)
+    await fetch(`/api/admin/reviews/${reviewId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_approved: true, is_rejected: false }),
+    })
     setLoading(false)
     router.refresh()
   }
 
   async function reject() {
     setLoading(true)
-    await supabase
-      .from('reviews')
-      .update({ is_approved: false, is_rejected: true })
-      .eq('id', reviewId)
+    await fetch(`/api/admin/reviews/${reviewId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_approved: false, is_rejected: true }),
+    })
     setLoading(false)
     router.refresh()
   }
 
   async function handleDelete() {
     setLoading(true)
-    await supabase.from('reviews').delete().eq('id', reviewId)
+    await fetch(`/api/admin/reviews/${reviewId}`, { method: 'DELETE' })
     setLoading(false)
     setShowConfirm(false)
     router.refresh()

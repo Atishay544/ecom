@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { rateLimit } from '@/lib/security/rate-limit'
+import { assertSameOrigin } from '@/lib/security/csrf'
 
 export const runtime = 'nodejs'
 
@@ -13,6 +15,12 @@ function isValidPhone(v: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
+  const limited = await rateLimit(req, 'default')
+  if (limited) return limited
+
   try {
     const { email, phone, source } = await req.json()
 

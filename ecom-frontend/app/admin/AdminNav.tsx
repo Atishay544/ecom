@@ -15,14 +15,16 @@ import {
   BadgePercent,
   Mail,
   Truck,
+  BarChart2,
 } from 'lucide-react'
 
 const navLinks = [
-  { href: '/admin/dashboard',          label: 'Dashboard',      icon: LayoutDashboard },
-  { href: '/admin/products',           label: 'Products',        icon: Package },
-  { href: '/admin/orders',             label: 'Orders',          icon: ShoppingCart },
-  { href: '/admin/delivery-partners',  label: 'Delivery',        icon: Truck },
-  { href: '/admin/customers',          label: 'Customers',       icon: Users },
+  { href: '/admin/dashboard',          label: 'Dashboard',        icon: LayoutDashboard },
+  { href: '/admin/products',           label: 'Products',          icon: Package },
+  { href: '/admin/orders',             label: 'Orders',            icon: ShoppingCart },
+  { href: '/admin/delivery',           label: 'Delivery Analytics', icon: BarChart2 },
+  { href: '/admin/delivery-partners',  label: 'Carriers',          icon: Truck },
+  { href: '/admin/customers',          label: 'Customers',         icon: Users },
   { href: '/admin/leads',              label: 'Leads',           icon: Mail },
   { href: '/admin/categories',         label: 'Categories',      icon: Tag },
   { href: '/admin/banners',            label: 'Banners',         icon: ImageIcon },

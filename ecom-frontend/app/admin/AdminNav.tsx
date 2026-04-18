@@ -13,7 +13,6 @@ import {
   MessageSquare,
   Image as ImageIcon,
   BadgePercent,
-  Mail,
   Truck,
   BarChart2,
 } from 'lucide-react'
@@ -25,7 +24,6 @@ const navLinks = [
   { href: '/admin/delivery',           label: 'Delivery Analytics', icon: BarChart2 },
   { href: '/admin/delivery-partners',  label: 'Carriers',          icon: Truck },
   { href: '/admin/customers',          label: 'Customers',         icon: Users },
-  { href: '/admin/leads',              label: 'Leads',           icon: Mail },
   { href: '/admin/categories',         label: 'Categories',      icon: Tag },
   { href: '/admin/banners',            label: 'Banners',         icon: ImageIcon },
   { href: '/admin/offers',             label: 'Offers',          icon: BadgePercent },

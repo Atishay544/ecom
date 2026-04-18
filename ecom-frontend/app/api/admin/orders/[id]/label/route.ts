@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
-import { fetchDelhiveryLabel } from '@/lib/delhivery'
+import { fetchCarrierLabel } from '@/lib/carriers'
+import type { CarrierConfig } from '@/lib/carriers'
 
 async function requireAdmin() {
   const supabase = await createServerClient()
@@ -24,14 +25,26 @@ export async function GET(_req: NextRequest, { params }: PageProps) {
 
   const { data: order } = await admin
     .from('orders')
-    .select('delivery_awb')
+    .select('delivery_awb, delivery_partner')
     .eq('id', id)
     .single()
 
-  const awb = (order as any)?.delivery_awb
+  const awb     = (order as any)?.delivery_awb
+  const partner = (order as any)?.delivery_partner
+
   if (!awb) return NextResponse.json({ error: 'No AWB for this order' }, { status: 404 })
 
-  const result = await fetchDelhiveryLabel(awb)
+  // Find carrier config by display_name
+  const { data: carriers } = await admin
+    .from('delivery_partners' as any)
+    .select('*')
+    .eq('display_name', partner)
+    .limit(1)
+
+  const cfg = (carriers?.[0] ?? null) as CarrierConfig | null
+  if (!cfg) return NextResponse.json({ error: 'Carrier config not found' }, { status: 404 })
+
+  const result = await fetchCarrierLabel(cfg, awb)
   if (!result.ok || !result.buffer) {
     return NextResponse.json({ error: result.error ?? 'Label fetch failed' }, { status: 502 })
   }

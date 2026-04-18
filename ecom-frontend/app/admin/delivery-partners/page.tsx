@@ -11,22 +11,33 @@ interface Partner {
   account_code: string | null
   pickup_location_name: string | null
   pickup_pincode: string | null
+  config: {
+    pickup_address?: string
+    pickup_city?: string
+    pickup_state?: string
+    pickup_phone?: string
+    store_name?: string
+    gst_number?: string
+    base_url?: string
+  }
   is_active: boolean
   created_at: string
 }
 
 const PARTNER_OPTIONS = [
-  { value: 'delhivery', label: 'Delhivery' },
-  { value: 'dtdc',      label: 'DTDC' },
-  { value: 'bluedart',  label: 'BlueDart' },
-  { value: 'other',     label: 'Other' },
+  { value: 'delhivery',  label: 'Delhivery' },
+  { value: 'shiprocket', label: 'Shiprocket' },
+  { value: 'dtdc',       label: 'DTDC' },
+  { value: 'bluedart',   label: 'BlueDart' },
+  { value: 'other',      label: 'Other' },
 ]
 
 const PARTNER_EMOJIS: Record<string, string> = {
-  delhivery: '🚚',
-  dtdc:      '📦',
-  bluedart:  '✈️',
-  other:     '🏷️',
+  delhivery:  '🚚',
+  shiprocket: '🚀',
+  dtdc:       '📦',
+  bluedart:   '✈️',
+  other:      '🏷️',
 }
 
 function maskKey(key: string | null) {
@@ -44,74 +55,92 @@ const EMPTY_FORM = {
   pickup_location_name: '',
   pickup_pincode: '',
   is_active: true,
+  config: {
+    pickup_address: '',
+    pickup_city: '',
+    pickup_state: '',
+    pickup_phone: '',
+    store_name: '',
+    gst_number: '',
+  },
 }
+
+type FormState = typeof EMPTY_FORM
 
 export default function DeliveryPartnersPage() {
   const [partners, setPartners] = useState<Partner[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading]   = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState({ ...EMPTY_FORM })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showGuide, setShowGuide] = useState(false)
+  const [form, setForm]         = useState<FormState>({ ...EMPTY_FORM, config: { ...EMPTY_FORM.config } })
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+  const [testing, setTesting]   = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    loadPartners()
-  }, [])
+  useEffect(() => { loadPartners() }, [])
 
   async function loadPartners() {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/delivery-partners')
+      const res  = await fetch('/api/admin/delivery-partners')
       const json = await res.json()
       setPartners(json.data ?? [])
-    } catch {
-      setError('Failed to load delivery partners')
-    } finally {
-      setLoading(false)
-    }
+    } catch { setError('Failed to load delivery partners') }
+    finally  { setLoading(false) }
   }
 
-  function openAddForm() {
+  function setField(key: keyof Omit<FormState, 'config'>, val: any) {
+    setForm(f => ({ ...f, [key]: val }))
+  }
+
+  function setConfig(key: keyof FormState['config'], val: string) {
+    setForm(f => ({ ...f, config: { ...f.config, [key]: val } }))
+  }
+
+  function openAdd() {
     setEditingId(null)
-    setForm({ ...EMPTY_FORM })
+    setForm({ ...EMPTY_FORM, config: { ...EMPTY_FORM.config } })
     setError(null)
     setShowForm(true)
   }
 
-  function openEditForm(p: Partner) {
+  function openEdit(p: Partner) {
     setEditingId(p.id)
     setForm({
-      name: p.name,
-      display_name: p.display_name,
-      api_key: p.api_key ?? '',
-      api_secret: p.api_secret ?? '',
-      account_code: p.account_code ?? '',
+      name:                 p.name,
+      display_name:         p.display_name,
+      api_key:              p.api_key ?? '',
+      api_secret:           p.api_secret ?? '',
+      account_code:         p.account_code ?? '',
       pickup_location_name: p.pickup_location_name ?? '',
-      pickup_pincode: p.pickup_pincode ?? '',
-      is_active: p.is_active,
+      pickup_pincode:       p.pickup_pincode ?? '',
+      is_active:            p.is_active,
+      config: {
+        pickup_address: p.config?.pickup_address ?? '',
+        pickup_city:    p.config?.pickup_city ?? '',
+        pickup_state:   p.config?.pickup_state ?? '',
+        pickup_phone:   p.config?.pickup_phone ?? '',
+        store_name:     p.config?.store_name ?? '',
+        gst_number:     p.config?.gst_number ?? '',
+      },
     })
     setError(null)
     setShowForm(true)
   }
 
   function cancelForm() {
-    setShowForm(false)
-    setEditingId(null)
-    setForm({ ...EMPTY_FORM })
-    setError(null)
+    setShowForm(false); setEditingId(null)
+    setForm({ ...EMPTY_FORM, config: { ...EMPTY_FORM.config } }); setError(null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setSaving(true)
-    setError(null)
+    setSaving(true); setError(null)
     try {
-      const url = '/api/admin/delivery-partners'
       const method = editingId ? 'PATCH' : 'POST'
-      const body = editingId ? { id: editingId, ...form } : form
-      const res = await fetch(url, {
+      const body   = editingId ? { id: editingId, ...form } : form
+      const res    = await fetch('/api/admin/delivery-partners', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -120,158 +149,154 @@ export default function DeliveryPartnersPage() {
       if (!res.ok) throw new Error(json.error ?? 'Save failed')
       await loadPartners()
       cancelForm()
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setSaving(false)
-    }
+    } catch (e: any) { setError(e.message) }
+    finally          { setSaving(false) }
   }
 
   async function toggleActive(p: Partner) {
-    try {
-      await fetch('/api/admin/delivery-partners', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: p.id, is_active: !p.is_active }),
-      })
-      await loadPartners()
-    } catch {
-      setError('Failed to update partner status')
-    }
+    await fetch('/api/admin/delivery-partners', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: p.id, is_active: !p.is_active }),
+    })
+    loadPartners()
   }
+
+  async function testConnection(p: Partner) {
+    setTesting(p.id)
+    setTestResult(r => ({ ...r, [p.id]: '' }))
+    try {
+      const res  = await fetch(`/api/admin/delivery-partners/test?id=${p.id}`)
+      const json = await res.json()
+      setTestResult(r => ({ ...r, [p.id]: json.ok ? '✓ Connected' : `✗ ${json.error}` }))
+    } catch (e: any) {
+      setTestResult(r => ({ ...r, [p.id]: `✗ ${e.message}` }))
+    } finally { setTesting(null) }
+  }
+
+  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+  const labelCls = 'block text-sm font-medium text-gray-700 mb-1'
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Delivery Partners</h1>
-        <button
-          onClick={openAddForm}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-        >
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Delivery Partners</h1>
+          <p className="text-sm text-gray-500 mt-1">Add carrier accounts — rates are fetched automatically when booking orders</p>
+        </div>
+        <button onClick={openAdd} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
           + Add Partner
         </button>
       </div>
 
-      {/* Add / Edit Form */}
+      {/* Form */}
       {showForm && (
         <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">
+          <h2 className="text-base font-semibold text-gray-800 mb-5">
             {editingId ? 'Edit Partner' : 'Add Delivery Partner'}
           </h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Section: Carrier */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Partner</label>
-              <select
-                value={form.name}
-                onChange={e => {
-                  const opt = PARTNER_OPTIONS.find(o => o.value === e.target.value)
-                  setForm(f => ({ ...f, name: e.target.value, display_name: opt?.label ?? f.display_name }))
-                }}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option value="">Select partner…</option>
-                {PARTNER_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Carrier</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Carrier *</label>
+                  <select value={form.name} onChange={e => {
+                    const opt = PARTNER_OPTIONS.find(o => o.value === e.target.value)
+                    setForm(f => ({ ...f, name: e.target.value, display_name: opt?.label ?? f.display_name }))
+                  }} className={inputCls} required>
+                    <option value="">Select…</option>
+                    {PARTNER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Display Name *</label>
+                  <input type="text" value={form.display_name} onChange={e => setField('display_name', e.target.value)}
+                    placeholder="e.g. Delhivery Express" className={inputCls} required />
+                </div>
+                <div>
+                  <label className={labelCls}>API Key / Token</label>
+                  <input type="text" value={form.api_key} onChange={e => setField('api_key', e.target.value)}
+                    placeholder="Paste API token here" className={`${inputCls} font-mono`} />
+                </div>
+                <div>
+                  <label className={labelCls}>API Secret / Password</label>
+                  <input type="password" value={form.api_secret} onChange={e => setField('api_secret', e.target.value)}
+                    placeholder="Secret key (if required)" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Account Code / Client ID</label>
+                  <input type="text" value={form.account_code} onChange={e => setField('account_code', e.target.value)}
+                    placeholder="DTDC client ID, etc." className={inputCls} />
+                </div>
+              </div>
             </div>
 
+            {/* Section: Pickup / Store */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
-              <input
-                type="text"
-                value={form.display_name}
-                onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
-                placeholder="e.g. Delhivery Express"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pickup Location</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Pickup Location Name *</label>
+                  <input type="text" value={form.pickup_location_name} onChange={e => setField('pickup_location_name', e.target.value)}
+                    placeholder="Exact name from carrier dashboard" className={inputCls} required />
+                  <p className="text-xs text-gray-400 mt-1">Must match name in your carrier account</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Pickup Pincode *</label>
+                  <input type="text" value={form.pickup_pincode} onChange={e => setField('pickup_pincode', e.target.value)}
+                    placeholder="e.g. 302001" className={inputCls} maxLength={6} required />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={labelCls}>Pickup Address</label>
+                  <input type="text" value={form.config.pickup_address} onChange={e => setConfig('pickup_address', e.target.value)}
+                    placeholder="Street address" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>City</label>
+                  <input type="text" value={form.config.pickup_city} onChange={e => setConfig('pickup_city', e.target.value)}
+                    placeholder="e.g. Jaipur" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>State</label>
+                  <input type="text" value={form.config.pickup_state} onChange={e => setConfig('pickup_state', e.target.value)}
+                    placeholder="e.g. Rajasthan" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Contact Phone</label>
+                  <input type="tel" value={form.config.pickup_phone} onChange={e => setConfig('pickup_phone', e.target.value)}
+                    placeholder="10-digit number" className={inputCls} maxLength={10} />
+                </div>
+                <div>
+                  <label className={labelCls}>Store / Seller Name</label>
+                  <input type="text" value={form.config.store_name} onChange={e => setConfig('store_name', e.target.value)}
+                    placeholder="Appears on shipping label" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>GST Number <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input type="text" value={form.config.gst_number} onChange={e => setConfig('gst_number', e.target.value)}
+                    placeholder="22AAAAA0000A1Z5" className={`${inputCls} font-mono`} />
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
-              <input
-                type="text"
-                value={form.api_key}
-                onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))}
-                placeholder="API key from partner dashboard"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-              />
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="is_active" checked={form.is_active}
+                onChange={e => setField('is_active', e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
+              <label htmlFor="is_active" className="text-sm text-gray-700">Active (included in rate comparisons)</label>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">API Secret</label>
-              <input
-                type="password"
-                value={form.api_secret}
-                onChange={e => setForm(f => ({ ...f, api_secret: e.target.value }))}
-                placeholder="API secret / password"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Account Code</label>
-              <input
-                type="text"
-                value={form.account_code}
-                onChange={e => setForm(f => ({ ...f, account_code: e.target.value }))}
-                placeholder="DTDC client ID / Delhivery account"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Location Name</label>
-              <input
-                type="text"
-                value={form.pickup_location_name}
-                onChange={e => setForm(f => ({ ...f, pickup_location_name: e.target.value }))}
-                placeholder="Warehouse / store name"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Pincode</label>
-              <input
-                type="text"
-                value={form.pickup_pincode}
-                onChange={e => setForm(f => ({ ...f, pickup_pincode: e.target.value }))}
-                placeholder="e.g. 400001"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 pt-5">
-              <input
-                type="checkbox"
-                id="is_active"
-                checked={form.is_active}
-                onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
-                className="w-4 h-4 text-blue-600 rounded"
-              />
-              <label htmlFor="is_active" className="text-sm text-gray-700">Active</label>
-            </div>
-
-            {error && (
-              <div className="sm:col-span-2 text-sm text-red-600">{error}</div>
-            )}
-
-            <div className="sm:col-span-2 flex gap-3">
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
+            <div className="flex gap-3">
+              <button type="submit" disabled={saving}
+                className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
                 {saving ? 'Saving…' : 'Save Partner'}
               </button>
-              <button
-                type="button"
-                onClick={cancelForm}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
+              <button type="button" onClick={cancelForm}
+                className="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
                 Cancel
               </button>
             </div>
@@ -283,12 +308,13 @@ export default function DeliveryPartnersPage() {
       {loading ? (
         <div className="text-sm text-gray-400 py-8 text-center">Loading…</div>
       ) : partners.length === 0 ? (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
-          <p className="text-sm font-medium text-yellow-800">No delivery partners configured yet.</p>
-          <p className="text-xs text-yellow-700 mt-1">Click "Add Partner" to configure Delhivery, DTDC, or BlueDart.</p>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-8 text-center">
+          <p className="text-2xl mb-3">🚚</p>
+          <p className="text-sm font-semibold text-blue-800 mb-1">No delivery partners yet</p>
+          <p className="text-xs text-blue-600">Add Delhivery (or any carrier) to start booking shipments directly from orders.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {partners.map(p => (
             <div key={p.id} className="bg-white border border-gray-200 rounded-xl p-5">
               <div className="flex items-start justify-between mb-3">
@@ -299,18 +325,15 @@ export default function DeliveryPartnersPage() {
                     <p className="text-xs text-gray-400 capitalize">{p.name}</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => toggleActive(p)}
+                <button onClick={() => toggleActive(p)}
                   className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-colors ${
-                    p.is_active
-                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  }`}
-                >
+                    p.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}>
                   {p.is_active ? 'Active' : 'Inactive'}
                 </button>
               </div>
-              <div className="space-y-1.5 text-xs text-gray-500">
+
+              <div className="space-y-1.5 text-xs text-gray-500 mb-3">
                 <div className="flex justify-between">
                   <span className="font-medium text-gray-600">API Key</span>
                   <span className="font-mono">{maskKey(p.api_key)}</span>
@@ -321,23 +344,37 @@ export default function DeliveryPartnersPage() {
                     <span>{p.pickup_pincode}</span>
                   </div>
                 )}
+                {p.config?.pickup_city && (
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">City</span>
+                    <span>{p.config.pickup_city}{p.config.pickup_state ? `, ${p.config.pickup_state}` : ''}</span>
+                  </div>
+                )}
                 {p.pickup_location_name && (
                   <div className="flex justify-between">
                     <span className="font-medium text-gray-600">Location</span>
-                    <span className="truncate max-w-[120px]">{p.pickup_location_name}</span>
+                    <span className="truncate max-w-[140px]">{p.pickup_location_name}</span>
                   </div>
                 )}
                 {!p.api_key && (
-                  <p className="text-yellow-600 text-xs mt-2">No API key — mock rates will be used</p>
+                  <p className="text-amber-600 text-xs pt-1">⚠ No API key — mock rates will be shown</p>
                 )}
               </div>
-              <div className="mt-4">
-                <button
-                  onClick={() => openEditForm(p)}
-                  className="text-xs text-blue-600 hover:underline"
-                >
-                  Edit
-                </button>
+
+              {testResult[p.id] && (
+                <p className={`text-xs mb-2 font-medium ${testResult[p.id].startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>
+                  {testResult[p.id]}
+                </p>
+              )}
+
+              <div className="flex items-center gap-3">
+                <button onClick={() => openEdit(p)} className="text-xs text-blue-600 hover:underline">Edit</button>
+                {p.api_key && (
+                  <button onClick={() => testConnection(p)} disabled={testing === p.id}
+                    className="text-xs text-gray-500 hover:text-gray-800 disabled:opacity-50">
+                    {testing === p.id ? 'Testing…' : 'Test API'}
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -345,52 +382,39 @@ export default function DeliveryPartnersPage() {
       )}
 
       {/* Setup Guide */}
-      <div className="mt-8 bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <button
-          onClick={() => setShowGuide(g => !g)}
-          className="w-full flex items-center justify-between px-5 py-4 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition-colors"
-        >
+      <details className="mt-8 bg-white border border-gray-200 rounded-xl overflow-hidden group">
+        <summary className="flex items-center justify-between px-5 py-4 text-sm font-semibold text-gray-800 hover:bg-gray-50 cursor-pointer transition-colors list-none">
           <span>Setup Guide — How to get API keys</span>
-          <span className="text-gray-400">{showGuide ? '▲' : '▼'}</span>
-        </button>
-
-        {showGuide && (
-          <div className="px-5 pb-6 space-y-6 border-t border-gray-100">
-            <div className="pt-4">
-              <h3 className="text-sm font-semibold text-gray-800 mb-2">🚚 Delhivery</h3>
-              <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
-                <li>Visit <span className="font-mono text-xs bg-gray-100 px-1 rounded">app.delhivery.com</span> and create a business account</li>
-                <li>Go to Settings → API → Generate API Token</li>
-                <li>Note your API Token and Pickup Location name from Settings → Pickup Locations</li>
-                <li>Paste the token as "API Key" and your warehouse pincode as "Pickup Pincode"</li>
-              </ol>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-gray-800 mb-2">📦 DTDC</h3>
-              <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
-                <li>Register at <span className="font-mono text-xs bg-gray-100 px-1 rounded">dtdc.com/register</span></li>
-                <li>After approval, log in to the DTDC partner portal</li>
-                <li>Navigate to API Access → Generate Credentials</li>
-                <li>Copy your Client ID (Account Code) and API Bearer token (API Key)</li>
-              </ol>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-gray-800 mb-2">✈️ BlueDart</h3>
-              <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
-                <li>Visit <span className="font-mono text-xs bg-gray-100 px-1 rounded">bluedart.com</span> and contact sales for API access</li>
-                <li>Once onboarded, access the BlueDart API portal</li>
-                <li>Generate a License Key (API Key) and note your customer code</li>
-              </ol>
-            </div>
-
-            <p className="text-xs text-gray-400">
-              Until API keys are configured, the system uses mock rates for rate comparison. Orders can still be assigned to a partner manually.
-            </p>
+          <span className="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+        </summary>
+        <div className="px-5 pb-6 space-y-5 border-t border-gray-100 pt-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">🚚 Delhivery</h3>
+            <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+              <li>Go to <code className="text-xs bg-gray-100 px-1 rounded">app.delhivery.com</code> → Settings → API → copy your Token</li>
+              <li>Go to Settings → Pickup Locations → copy the exact location name</li>
+              <li>Paste token as "API Key", location as "Pickup Location Name"</li>
+              <li>Fill pickup address, city, state — these appear on return labels</li>
+            </ol>
           </div>
-        )}
-      </div>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">🚀 Shiprocket</h3>
+            <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+              <li>Register at <code className="text-xs bg-gray-100 px-1 rounded">shiprocket.in</code></li>
+              <li>Go to Settings → API → generate token</li>
+              <li>Use your email as Account Code, token as API Key</li>
+            </ol>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">📦 DTDC</h3>
+            <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+              <li>Register at <code className="text-xs bg-gray-100 px-1 rounded">dtdc.com</code> → partner portal</li>
+              <li>API Access → get Client ID (Account Code) + Bearer token (API Key)</li>
+            </ol>
+          </div>
+          <p className="text-xs text-gray-400">Mock rates are shown until API keys are saved. You can still assign and book manually.</p>
+        </div>
+      </details>
     </div>
   )
 }

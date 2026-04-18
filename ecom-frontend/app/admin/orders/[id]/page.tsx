@@ -5,7 +5,6 @@ import { requireAdmin } from '@/lib/admin-auth'
 import OrderDetailActions from './OrderDetailActions'
 import InvoiceButton from './InvoiceButton'
 import DeliveryPanel from './DeliveryPanel'
-import PrintButton from './PrintButton'
 
 export const metadata = { title: 'Order Detail' }
 
@@ -93,7 +92,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <PrintButton />
           <InvoiceButton order={{
             ...order,
             customer: { full_name: customer?.full_name ?? undefined, email: customerEmail ?? undefined, phone: customer?.phone ?? undefined },

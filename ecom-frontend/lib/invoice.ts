@@ -55,24 +55,28 @@ export async function downloadInvoicePDF(order: InvoiceOrder) {
 
   // ── Header ───────────────────────────────────────────────
   doc.setFillColor(15, 15, 15)
-  doc.rect(0, 0, pageW, 28, 'F')
+  doc.rect(0, 0, pageW, 32, 'F')
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(18)
   doc.setFont('helvetica', 'bold')
-  doc.text('Layers Factory', 14, 12)
-  doc.setFontSize(9)
+  doc.text('Layers Factory', 14, 11)
+  doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  doc.text('support@aitalk247.com  |  orders@aitalk247.com', 14, 18)
+  doc.text('www.layerfactory.in', 14, 17)
+  doc.text('support@aitalk247.com  |  orders@aitalk247.com', 14, 22)
   doc.setFontSize(20)
   doc.setFont('helvetica', 'bold')
   doc.text('INVOICE', pageW - 14, 17, { align: 'right' })
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'normal')
+  doc.text('Tax Invoice / Bill of Supply', pageW - 14, 23, { align: 'right' })
 
   // ── Invoice meta ────────────────────────────────────────
   doc.setTextColor(30, 30, 30)
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
 
-  const metaY = 36
+  const metaY = 40
   doc.setFont('helvetica', 'bold')
   doc.text('Invoice No:', 14, metaY)
   doc.setFont('helvetica', 'normal')
@@ -192,9 +196,9 @@ export async function downloadInvoicePDF(order: InvoiceOrder) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(130, 130, 130)
-  doc.text('Thank you for shopping with Layers Factory!', 14, footerY)
-  doc.text('Returns accepted within 30 days — layerfactory.in/refund-policy', 14, footerY + 5)
-  doc.text(`Generated on ${new Date().toLocaleString('en-US')}`, pageW - 14, footerY, { align: 'right' })
+  doc.text('Thank you for shopping with Layers Factory! — www.layerfactory.in', 14, footerY)
+  doc.text('Returns accepted within 7 days. For queries: support@aitalk247.com  |  layerfactory.in/refund-policy', 14, footerY + 5)
+  doc.text(`Generated ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`, pageW - 14, footerY, { align: 'right' })
 
   doc.save(`invoice-${orderId}.pdf`)
 }

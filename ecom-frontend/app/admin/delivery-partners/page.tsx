@@ -77,6 +77,9 @@ export default function DeliveryPartnersPage() {
   const [error, setError]       = useState<string | null>(null)
   const [testing, setTesting]   = useState<string | null>(null)
   const [testResult, setTestResult] = useState<Record<string, string>>({})
+  const [warehouses, setWarehouses] = useState<{ name: string; address: string; pin: string; city: string; state: string; phone: string }[]>([])
+  const [loadingWh, setLoadingWh]   = useState(false)
+  const [whError, setWhError]       = useState<string | null>(null)
 
   useEffect(() => { loadPartners() }, [])
 
@@ -132,6 +135,40 @@ export default function DeliveryPartnersPage() {
   function cancelForm() {
     setShowForm(false); setEditingId(null)
     setForm({ ...EMPTY_FORM, config: { ...EMPTY_FORM.config } }); setError(null)
+    setWarehouses([]); setWhError(null)
+  }
+
+  async function loadWarehouses() {
+    if (!form.api_key.trim()) { setWhError('Enter API key first'); return }
+    setLoadingWh(true); setWhError(null); setWarehouses([])
+    try {
+      const res  = await fetch('/api/admin/delhivery/fetch-warehouses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: form.api_key }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error ?? 'Failed to fetch warehouses')
+      if (!json.warehouses?.length) throw new Error('No warehouses found in your Delhivery account. Create one at app.delhivery.com → Settings → Pickup Locations.')
+      setWarehouses(json.warehouses)
+    } catch (e: any) { setWhError(e.message) }
+    finally          { setLoadingWh(false) }
+  }
+
+  function selectWarehouse(wh: typeof warehouses[0]) {
+    setForm(f => ({
+      ...f,
+      pickup_location_name: wh.name,
+      pickup_pincode:       wh.pin,
+      config: {
+        ...f.config,
+        pickup_address: wh.address,
+        pickup_city:    wh.city,
+        pickup_state:   wh.state,
+        pickup_phone:   wh.phone,
+      },
+    }))
+    setWarehouses([])
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -237,12 +274,44 @@ export default function DeliveryPartnersPage() {
             {/* Section: Pickup / Store */}
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pickup Location</p>
+
+              {/* Delhivery: load from API */}
+              {form.name === 'delhivery' && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs font-semibold text-blue-800">Auto-fill from Delhivery</p>
+                    <button type="button" onClick={loadWarehouses} disabled={loadingWh || !form.api_key}
+                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium transition-colors">
+                      {loadingWh ? 'Loading…' : '↓ Load My Warehouses'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-blue-600">Fetches your registered pickup locations directly from Delhivery — no manual typing needed.</p>
+                  {whError && <p className="text-xs text-red-600 mt-2">{whError}</p>}
+                  {warehouses.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs font-medium text-blue-700">Select a warehouse:</p>
+                      {warehouses.map(wh => (
+                        <button key={wh.name} type="button" onClick={() => selectWarehouse(wh)}
+                          className="w-full text-left p-2.5 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors">
+                          <p className="text-sm font-semibold text-gray-800">{wh.name}</p>
+                          <p className="text-xs text-gray-500">{wh.address}, {wh.city}, {wh.state} — {wh.pin}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {form.pickup_location_name && (
+                    <p className="text-xs text-green-700 mt-2 font-medium">✓ Using: <span className="font-mono">{form.pickup_location_name}</span></p>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelCls}>Pickup Location Name *</label>
                   <input type="text" value={form.pickup_location_name} onChange={e => setField('pickup_location_name', e.target.value)}
-                    placeholder="Exact name from carrier dashboard" className={inputCls} required />
-                  <p className="text-xs text-gray-400 mt-1">Must match name in your carrier account</p>
+                    placeholder={form.name === 'delhivery' ? 'Use "Load My Warehouses" above' : 'Exact name from carrier dashboard'}
+                    className={inputCls} required />
+                  {form.name === 'delhivery' && <p className="text-xs text-amber-600 mt-1">⚠ Must exactly match your Delhivery warehouse name</p>}
                 </div>
                 <div>
                   <label className={labelCls}>Pickup Pincode *</label>
@@ -392,9 +461,10 @@ export default function DeliveryPartnersPage() {
             <h3 className="text-sm font-semibold text-gray-800 mb-2">🚚 Delhivery</h3>
             <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
               <li>Go to <code className="text-xs bg-gray-100 px-1 rounded">app.delhivery.com</code> → Settings → API → copy your Token</li>
-              <li>Go to Settings → Pickup Locations → copy the exact location name</li>
-              <li>Paste token as "API Key", location as "Pickup Location Name"</li>
-              <li>Fill pickup address, city, state — these appear on return labels</li>
+              <li>Paste token as "API Key / Token" above</li>
+              <li>Click <strong>"↓ Load My Warehouses"</strong> — your registered pickup locations load automatically</li>
+              <li>Select one — name, pincode and address all fill in automatically</li>
+              <li>Warehouses are managed on Delhivery portal, not here</li>
             </ol>
           </div>
           <div>

@@ -2,14 +2,14 @@ import type { CarrierConfig, CarrierRate, OrderShipmentInput, BookResult } from 
 import {
   delhiveryGetRates, delhiveryBookShipment, delhiveryFetchLabel, delhiveryCancel,
   delhiveryTrack, delhiveryNDRAction, delhiveryCreatePickup,
-  delhiveryCreateWarehouse, delhiveryUpdateWarehouse, delhiveryTestConnection,
-  delhiveryCheckPincode,
+  delhiveryCreateWarehouse, delhiveryUpdateWarehouse, delhiveryListWarehouses,
+  delhiveryTestConnection, delhiveryCheckPincode,
 } from './delhivery'
 
 export type { CarrierConfig, CarrierRate, OrderShipmentInput, BookResult }
-export type { TrackResult, TrackScan, NDRInput, NDRAction, PickupRequest, WarehouseInput, ShipmentUpdateInput, PincodeResult } from './delhivery'
+export type { TrackResult, TrackScan, NDRInput, NDRAction, PickupRequest, WarehouseInput, WarehouseRecord, ShipmentUpdateInput, PincodeResult } from './delhivery'
 
-export { delhiveryTrack, delhiveryNDRAction, delhiveryCreatePickup, delhiveryCreateWarehouse, delhiveryUpdateWarehouse, delhiveryTestConnection, delhiveryCheckPincode }
+export { delhiveryTrack, delhiveryNDRAction, delhiveryCreatePickup, delhiveryCreateWarehouse, delhiveryUpdateWarehouse, delhiveryListWarehouses, delhiveryTestConnection, delhiveryCheckPincode }
 
 /** Fetch rates from all active carriers in parallel, sorted by price */
 export async function getAllCarrierRates(

@@ -372,7 +372,45 @@ export async function delhiveryCreatePickup(
   return { success: true, pickup_id: json?.pickup_id ?? json?.id }
 }
 
-// ── 10 & 11. WAREHOUSE MANAGEMENT ────────────────────────────────────────
+// ── 10, 11 & 12. WAREHOUSE MANAGEMENT ────────────────────────────────────
+
+export interface WarehouseRecord {
+  name: string        // the exact pickup_location name to use when booking
+  address: string
+  pin: string
+  city: string
+  state: string
+  phone: string
+}
+
+export async function delhiveryListWarehouses(
+  cfg: Pick<CarrierConfig, 'api_key' | 'config'>
+): Promise<{ success: boolean; warehouses: WarehouseRecord[]; error?: string }> {
+  try {
+    const baseUrl = (cfg.config?.base_url ?? 'https://track.delhivery.com').replace(/\/$/, '')
+    const res = await fetch(`${baseUrl}/api/backend/clientwarehouse/`, {
+      headers: { Authorization: `Token ${cfg.api_key}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return { success: false, warehouses: [], error: `HTTP ${res.status}` }
+    const json = await res.json()
+
+    // Delhivery returns { data: [...] } or flat array
+    const raw: any[] = json?.data ?? json?.warehouses ?? (Array.isArray(json) ? json : [])
+    const warehouses: WarehouseRecord[] = raw.map((w: any) => ({
+      name:    w.registered_name ?? w.name ?? w.warehouse_name ?? '',
+      address: w.address ?? '',
+      pin:     String(w.pin ?? w.pincode ?? ''),
+      city:    w.city ?? '',
+      state:   w.state ?? '',
+      phone:   w.phone ?? w.contact_phone ?? '',
+    })).filter(w => w.name)
+
+    return { success: true, warehouses }
+  } catch (e: any) {
+    return { success: false, warehouses: [], error: e.message }
+  }
+}
 
 export interface WarehouseInput {
   warehouse_name: string

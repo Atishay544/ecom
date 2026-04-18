@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
-import { delhiveryCreateWarehouse, delhiveryUpdateWarehouse } from '@/lib/carriers'
+import { delhiveryCreateWarehouse, delhiveryUpdateWarehouse, delhiveryListWarehouses } from '@/lib/carriers'
 import type { CarrierConfig } from '@/lib/carriers'
 
 async function requireAdmin() {
@@ -23,6 +23,39 @@ async function getDelhiveryCarrier(admin: ReturnType<typeof createAdminClient>) 
     .eq('is_active', true)
     .single()
   return data as CarrierConfig | null
+}
+
+/**
+ * GET — list registered warehouses from Delhivery
+ * ?partner_id=xxx  → use saved carrier's api_key
+ * body {api_key, base_url} via POST /list is used by the add-form (key not yet saved)
+ */
+export async function GET(req: NextRequest) {
+  const admin = await requireAdmin()
+  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const partnerId = req.nextUrl.searchParams.get('partner_id')
+  let apiKey  = ''
+  let baseUrl = 'https://track.delhivery.com'
+
+  if (partnerId) {
+    const { data: carrier } = await admin
+      .from('delivery_partners' as any).select('api_key, config').eq('id', partnerId).single()
+    if (!carrier) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
+    apiKey  = (carrier as any).api_key ?? ''
+    baseUrl = (carrier as any).config?.base_url ?? baseUrl
+  } else {
+    // fallback: find any active delhivery partner
+    const { data: carrier } = await admin
+      .from('delivery_partners' as any).select('api_key, config').eq('name', 'delhivery').eq('is_active', true).single()
+    apiKey  = (carrier as any)?.api_key ?? ''
+    baseUrl = (carrier as any)?.config?.base_url ?? baseUrl
+  }
+
+  if (!apiKey) return NextResponse.json({ error: 'No API key configured' }, { status: 400 })
+
+  const result = await delhiveryListWarehouses({ api_key: apiKey, base_url: baseUrl } as any)
+  return NextResponse.json(result)
 }
 
 /** POST — create a new warehouse */

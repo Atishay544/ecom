@@ -1,7 +1,15 @@
 import type { CarrierConfig, CarrierRate, OrderShipmentInput, BookResult } from './types'
-import { delhiveryGetRates, delhiveryBookShipment, delhiveryFetchLabel, delhiveryCancel } from './delhivery'
+import {
+  delhiveryGetRates, delhiveryBookShipment, delhiveryFetchLabel, delhiveryCancel,
+  delhiveryTrack, delhiveryNDRAction, delhiveryCreatePickup,
+  delhiveryCreateWarehouse, delhiveryUpdateWarehouse, delhiveryTestConnection,
+  delhiveryCheckPincode,
+} from './delhivery'
 
 export type { CarrierConfig, CarrierRate, OrderShipmentInput, BookResult }
+export type { TrackResult, TrackScan, NDRInput, NDRAction, PickupRequest, WarehouseInput, ShipmentUpdateInput, PincodeResult } from './delhivery'
+
+export { delhiveryTrack, delhiveryNDRAction, delhiveryCreatePickup, delhiveryCreateWarehouse, delhiveryUpdateWarehouse, delhiveryTestConnection, delhiveryCheckPincode }
 
 /** Fetch rates from all active carriers in parallel, sorted by price */
 export async function getAllCarrierRates(
@@ -71,5 +79,25 @@ export async function cancelCarrierShipment(cfg: CarrierConfig, waybill: string)
       return delhiveryCancel(cfg, waybill)
     default:
       return false
+  }
+}
+
+/** Track a shipment */
+export async function trackCarrierShipment(cfg: CarrierConfig, waybill: string) {
+  switch (cfg.name) {
+    case 'delhivery':
+      return delhiveryTrack(cfg, waybill)
+    default:
+      return { status: 'Unknown', edd: null, scans: [] }
+  }
+}
+
+/** Perform NDR action on a shipment */
+export async function carrierNDRAction(cfg: CarrierConfig, input: import('./delhivery').NDRInput) {
+  switch (cfg.name) {
+    case 'delhivery':
+      return delhiveryNDRAction(cfg, input)
+    default:
+      return { success: false, error: `NDR not supported for "${cfg.name}"` }
   }
 }

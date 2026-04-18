@@ -112,16 +112,23 @@ export async function delhiveryBookShipment(
 ): Promise<BookResult> {
   if (!cfg.api_key) return { success: false, waybill: null, error: 'API key not configured' }
 
+  const phone = input.customerPhone.replace(/\D/g, '').slice(-10)
+  if (phone.length < 10) return { success: false, waybill: null, error: 'Customer phone number is missing or invalid (need 10 digits)' }
+
+  const weightKg   = Math.max(0.5, input.weightGrams / 1000)    // Delhivery expects kg, min 0.5
+  const orderDate  = input.orderDate.slice(0, 10)                // YYYY-MM-DD only
+  const shortOrder = input.orderId.replace(/-/g, '').slice(0, 30) // Delhivery has length limits
+
   const shipmentData = {
     shipments: [{
-      name:            input.customerName,
-      add:             input.address,
+      name:            input.customerName || 'Customer',
+      add:             input.address || cfg.config?.pickup_address || '',
       pin:             input.pincode,
       city:            input.city,
       state:           input.state,
       country:         'India',
-      phone:           input.customerPhone.replace(/\D/g, '').slice(-10),
-      order:           input.orderId,
+      phone,
+      order:           shortOrder,
       payment_mode:    input.paymentMode,
       return_pin:      cfg.pickup_pincode ?? '',
       return_city:     cfg.config?.pickup_city ?? '',
@@ -130,21 +137,21 @@ export async function delhiveryBookShipment(
       return_name:     cfg.config?.store_name ?? cfg.display_name,
       return_state:    cfg.config?.pickup_state ?? '',
       return_country:  'India',
-      products_desc:   input.productDesc.slice(0, 100),
+      products_desc:   (input.productDesc || 'Products').slice(0, 100),
       hsn_code:        '',
-      cod_amount:      input.codAmount,
-      order_date:      input.orderDate,
+      cod_amount:      input.paymentMode === 'COD' ? input.codAmount : 0,
+      order_date:      orderDate,
       total_amount:    input.totalAmount,
       seller_add:      cfg.config?.pickup_address ?? '',
       seller_name:     cfg.config?.store_name ?? cfg.display_name,
-      seller_inv:      input.orderId,
+      seller_inv:      shortOrder,
       seller_gst_tin:  cfg.config?.gst_number ?? '',
-      quantity:        input.items.reduce((s, i) => s + i.qty, 0),
+      quantity:        Math.max(1, input.items.reduce((s, i) => s + i.qty, 0)),
       waybill:         '',
       shipment_width:  12,
       shipment_height: 12,
       shipment_length: 12,
-      weight:          input.weightGrams,
+      weight:          weightKg,
       shipping_mode:   input.shippingMode === 'Express' ? 'Express' : 'Surface',
       address_type:    'home',
     }],
@@ -155,19 +162,37 @@ export async function delhiveryBookShipment(
   form.set('format', 'json')
   form.set('data', JSON.stringify(shipmentData))
 
-  const res = await fetch(`${base(cfg)}/api/cmu/create.json`, {
-    method: 'POST',
-    headers: { ...auth(cfg), 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: form.toString(),
-    signal: AbortSignal.timeout(12000),
-  })
-
-  const json = await res.json()
-  const pkg  = json?.packages?.[0]
-  if (!pkg) return { success: false, waybill: null, error: 'No package in response' }
-  if (pkg.status !== 'Success' && pkg.status !== 'success') {
-    return { success: false, waybill: null, error: pkg.error ?? pkg.remarks ?? 'Creation failed' }
+  let json: any
+  try {
+    const res = await fetch(`${base(cfg)}/api/cmu/create.json`, {
+      method: 'POST',
+      headers: { ...auth(cfg), 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+      signal: AbortSignal.timeout(12000),
+    })
+    const text = await res.text()
+    try { json = JSON.parse(text) } catch { return { success: false, waybill: null, error: `Delhivery non-JSON response (HTTP ${res.status}): ${text.slice(0, 200)}` } }
+    if (!res.ok) {
+      const msg = json?.error ?? json?.message ?? json?.rmk ?? `HTTP ${res.status}`
+      return { success: false, waybill: null, error: `Delhivery error: ${msg}` }
+    }
+  } catch (e: any) {
+    return { success: false, waybill: null, error: `Network error: ${e.message}` }
   }
+
+  // Top-level remark (e.g. pickup location not found)
+  if (json?.rmk && !json?.packages?.length) {
+    return { success: false, waybill: null, error: `Delhivery: ${json.rmk}` }
+  }
+
+  const pkg = json?.packages?.[0]
+  if (!pkg) return { success: false, waybill: null, error: `Unexpected response: ${JSON.stringify(json).slice(0, 300)}` }
+
+  if (pkg.status !== 'Success' && pkg.status !== 'success') {
+    const msg = pkg.error ?? pkg.remarks ?? pkg.status ?? 'Creation failed'
+    return { success: false, waybill: null, error: `Delhivery: ${msg}` }
+  }
+
   return { success: true, waybill: pkg.waybill ?? null }
 }
 

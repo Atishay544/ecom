@@ -92,9 +92,18 @@ export async function POST(req: NextRequest, { params }: PageProps) {
     items:         items.map((i: any) => ({ name: i.snapshot?.name ?? 'Product', qty: i.quantity ?? 1 })),
   }
 
+  // Log what we're sending so Vercel logs show the full payload on failure
+  console.log('[book-shipment] input:', JSON.stringify({
+    orderId: input.orderId, pincode: input.pincode, city: input.city, state: input.state,
+    phone: input.customerPhone.slice(0, 4) + '****',
+    weightGrams: input.weightGrams, paymentMode: input.paymentMode,
+    carrier: cfg.display_name, pickupLocation: cfg.pickup_location_name,
+  }))
+
   const result = await bookCarrierShipment(cfg, input)
 
   if (!result.success || !result.waybill) {
+    console.error('[book-shipment] failed:', result.error)
     return NextResponse.json({ error: result.error ?? 'Shipment creation failed' }, { status: 400 })
   }
 

@@ -202,7 +202,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create order items' }, { status: 500 })
   }
 
-  // ── 7b. Save shipping address to user profile for future pre-fill ────────
+  // ── 7b. Save shipping address to user profile + address book ────────────
+  // Update profile saved_address for checkout pre-fill
   admin.from('profiles')
     .update({ saved_address: {
       name:    shipping_address.name,
@@ -215,6 +216,34 @@ export async function POST(req: NextRequest) {
     }})
     .eq('id', user.id)
     .then(() => {})  // fire-and-forget
+
+  // Auto-save to addresses table if phone not already stored
+  ;(async () => {
+    const phone = (shipping_address.phone ?? '').replace(/\D/g, '')
+    if (phone.length < 10) return
+    const { data: existing } = await admin
+      .from('addresses')
+      .select('id')
+      .eq('user_id', user.id)
+      .filter('phone', 'ilike', `%${phone.slice(-10)}%`)
+      .maybeSingle()
+    if (existing) return
+    const { data: count } = await admin
+      .from('addresses')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+    await admin.from('addresses').insert({
+      user_id:    user.id,
+      full_name:  shipping_address.name,
+      phone:      shipping_address.phone,
+      line1:      shipping_address.line1,
+      line2:      shipping_address.line2 || null,
+      city:       shipping_address.city,
+      state:      shipping_address.state,
+      pincode:    shipping_address.pincode,
+      is_default: (count as any)?.count === 0,
+    })
+  })().catch(() => {})
 
   // ── 8. COD → done, no Razorpay needed ────────────────────────────────────
   if (payment_method === 'cod') {

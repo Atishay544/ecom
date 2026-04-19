@@ -42,68 +42,97 @@ function fmt(n: number) {
   return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+// Brand colours
+const BRAND_BLACK  = [15,   15,  15]  as [number,number,number]
+const BRAND_ACCENT = [99,  102, 241]  as [number,number,number]  // indigo-500
+const GRAY_900     = [17,   24,  39]  as [number,number,number]
+const GRAY_600     = [75,   85,  99]  as [number,number,number]
+const GRAY_200     = [229, 231, 235]  as [number,number,number]
+const GRAY_50      = [249, 250, 251]  as [number,number,number]
+const GREEN_600    = [22,  163,  74]  as [number,number,number]
+const WHITE        = [255, 255, 255]  as [number,number,number]
+
 export async function downloadInvoicePDF(order: InvoiceOrder) {
-  // Dynamic import so jsPDF doesn't bloat the initial bundle
-  const { default: jsPDF } = await import('jspdf')
+  const { default: jsPDF }    = await import('jspdf')
   const { default: autoTable } = await import('jspdf-autotable')
 
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  const pageW = doc.internal.pageSize.getWidth()
-  const orderId = order.id.slice(0, 8).toUpperCase()
-  const addr = order.shipping_address ?? {}
+  const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageW = doc.internal.pageSize.getWidth()   // 210
+  const pageH = doc.internal.pageSize.getHeight()  // 297
+  const orderId  = order.id.slice(0, 8).toUpperCase()
+  const addr     = order.shipping_address ?? {}
   const addrName = addr.name ?? addr.full_name ?? ''
 
-  // ── Header ───────────────────────────────────────────────
-  doc.setFillColor(15, 15, 15)
-  doc.rect(0, 0, pageW, 32, 'F')
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(18)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Layers Factory', 14, 11)
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'normal')
-  doc.text('www.layerfactory.in', 14, 17)
-  doc.text('support@aitalk247.com  |  orders@aitalk247.com', 14, 22)
-  doc.setFontSize(20)
-  doc.setFont('helvetica', 'bold')
-  doc.text('INVOICE', pageW - 14, 17, { align: 'right' })
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'normal')
-  doc.text('Tax Invoice / Bill of Supply', pageW - 14, 23, { align: 'right' })
+  // ── 1. Top accent bar ────────────────────────────────────────────────────
+  doc.setFillColor(...BRAND_ACCENT)
+  doc.rect(0, 0, pageW, 3, 'F')
 
-  // ── Invoice meta ────────────────────────────────────────
-  doc.setTextColor(30, 30, 30)
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-
-  const metaY = 40
+  // ── 2. Header: brand left · INVOICE right ───────────────────────────────
+  const HDR_TOP = 10
+  // Brand name
+  doc.setFillColor(...BRAND_BLACK)
+  doc.setTextColor(...WHITE)
+  doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.text('Invoice No:', 14, metaY)
-  doc.setFont('helvetica', 'normal')
-  doc.text(`#${orderId}`, 42, metaY)
+  // Draw small brand pill background
+  doc.roundedRect(14, HDR_TOP - 5, 52, 10, 2, 2, 'F')
+  doc.text('Layers Factory', 17, HDR_TOP + 1.5)
 
+  // Sub-text below brand
+  doc.setFontSize(7.5)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...GRAY_600)
+  doc.text('www.layerfactory.in', 14, HDR_TOP + 9)
+  doc.text('support@aitalk247.com', 14, HDR_TOP + 14)
+
+  // INVOICE label (right)
+  doc.setFontSize(26)
   doc.setFont('helvetica', 'bold')
-  doc.text('Date:', 14, metaY + 6)
-  doc.setFont('helvetica', 'normal')
-  doc.text(new Date(order.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }), 42, metaY + 6)
+  doc.setTextColor(...BRAND_BLACK)
+  doc.text('INVOICE', pageW - 14, HDR_TOP + 5, { align: 'right' })
 
-  doc.setFont('helvetica', 'bold')
-  doc.text('Status:', 14, metaY + 12)
+  doc.setFontSize(7.5)
   doc.setFont('helvetica', 'normal')
-  doc.text(order.status.toUpperCase(), 42, metaY + 12)
+  doc.setTextColor(...GRAY_600)
+  doc.text('Tax Invoice / Bill of Supply', pageW - 14, HDR_TOP + 11, { align: 'right' })
+  doc.text('GSTIN: N/A (Composition/Exempt)', pageW - 14, HDR_TOP + 16, { align: 'right' })
 
-  if (order.tracking_number) {
-    doc.setFont('helvetica', 'bold')
-    doc.text('Tracking:', 14, metaY + 18)
+  // ── 3. Thin divider ───────────────────────────────────────────────────────
+  const DIV1 = HDR_TOP + 20
+  doc.setDrawColor(...GRAY_200)
+  doc.setLineWidth(0.3)
+  doc.line(14, DIV1, pageW - 14, DIV1)
+
+  // ── 4. Two-column meta block ──────────────────────────────────────────────
+  const META_Y = DIV1 + 7
+  const COL2   = 110  // right column x
+
+  // Left: Invoice details
+  const metaRows: [string, string][] = [
+    ['Invoice No.',  `#LF-${orderId}`],
+    ['Order Date',   new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })],
+    ['Status',       order.status.toUpperCase().replace(/_/g, ' ')],
+  ]
+  if (order.tracking_number) metaRows.push(['Tracking', order.tracking_number])
+
+  doc.setFontSize(7.5)
+  metaRows.forEach(([label, value], i) => {
+    const y = META_Y + i * 6
     doc.setFont('helvetica', 'normal')
-    doc.text(order.tracking_number, 42, metaY + 18)
-  }
+    doc.setTextColor(...GRAY_600)
+    doc.text(label, 14, y)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...GRAY_900)
+    doc.text(value, 55, y)
+  })
 
-  // ── Billing / Shipping address ───────────────────────────
-  const addrX = pageW - 80
+  // Right column label
   doc.setFont('helvetica', 'bold')
-  doc.text('Deliver To:', addrX, metaY)
-  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  doc.setTextColor(...BRAND_ACCENT)
+  doc.text('DELIVER TO', COL2, META_Y - 1)
+
+  // Address lines
   const addrLines = [
     addrName,
     addr.line1,
@@ -113,25 +142,28 @@ export async function downloadInvoicePDF(order: InvoiceOrder) {
     addr.phone,
   ].filter(Boolean) as string[]
 
-  addrLines.forEach((line, i) => {
-    doc.text(line, addrX, metaY + 6 + i * 5)
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...GRAY_900)
+  doc.text(addrLines[0] ?? '', COL2, META_Y + 5)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...GRAY_600)
+  addrLines.slice(1).forEach((line, i) => {
+    doc.text(line, COL2, META_Y + 11 + i * 5)
   })
 
-  // Customer info
+  // Customer email
   if (order.customer?.email) {
-    const custY = metaY + 6 + addrLines.length * 5 + 3
-    doc.setFont('helvetica', 'bold')
-    doc.text('Customer:', addrX, custY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(order.customer.full_name ?? '', addrX, custY + 5)
-    doc.text(order.customer.email, addrX, custY + 10)
+    const custY = META_Y + 11 + (addrLines.length - 1) * 5 + 4
+    doc.setTextColor(...BRAND_ACCENT)
+    doc.text(order.customer.email, COL2, custY)
   }
 
-  // ── Items table ─────────────────────────────────────────
-  const tableY = metaY + (order.tracking_number ? 26 : 20)
+  // ── 5. Items table ─────────────────────────────────────────────────────────
+  const tableStartY = META_Y + Math.max(metaRows.length * 6, addrLines.length * 5 + 20) + 4
 
   autoTable(doc, {
-    startY: tableY + 4,
+    startY: tableStartY,
     head: [['#', 'Product', 'SKU', 'Qty', 'Unit Price', 'Total']],
     body: order.order_items.map((item, i) => [
       i + 1,
@@ -141,64 +173,112 @@ export async function downloadInvoicePDF(order: InvoiceOrder) {
       fmt(item.unit_price),
       fmt(item.total),
     ]),
-    headStyles: { fillColor: [15, 15, 15], textColor: 255, fontSize: 9, fontStyle: 'bold' },
-    bodyStyles: { fontSize: 9, textColor: [40, 40, 40] },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 70 },
-      2: { cellWidth: 28 },
-      3: { cellWidth: 12, halign: 'center' },
-      4: { cellWidth: 28, halign: 'right' },
-      5: { cellWidth: 28, halign: 'right' },
+    headStyles: {
+      fillColor: BRAND_BLACK,
+      textColor: WHITE,
+      fontSize:  8,
+      fontStyle: 'bold',
+      cellPadding: { top: 4, bottom: 4, left: 4, right: 4 },
     },
-    alternateRowStyles: { fillColor: [250, 250, 250] },
+    bodyStyles: {
+      fontSize:    8.5,
+      textColor:   GRAY_900,
+      cellPadding: { top: 3.5, bottom: 3.5, left: 4, right: 4 },
+    },
+    columnStyles: {
+      0: { cellWidth: 8,  halign: 'center' },
+      1: { cellWidth: 72 },
+      2: { cellWidth: 26 },
+      3: { cellWidth: 11, halign: 'center' },
+      4: { cellWidth: 28, halign: 'right' },
+      5: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
+    },
+    alternateRowStyles: { fillColor: GRAY_50 },
     margin: { left: 14, right: 14 },
+    tableLineColor: GRAY_200,
+    tableLineWidth: 0.2,
   })
 
-  // ── Totals ───────────────────────────────────────────────
-  const finalY = (doc as any).lastAutoTable.finalY + 6
-  const totalsX = pageW - 75
-  const lineH = 7
+  // ── 6. Totals panel ────────────────────────────────────────────────────────
+  const afterTable = (doc as any).lastAutoTable.finalY + 6
+  const BOX_W      = 80
+  const BOX_X      = pageW - 14 - BOX_W
+  let ty           = afterTable
 
-  function totRow(label: string, value: string, bold = false, y = 0) {
+  // Subtotal
+  function totLine(label: string, value: string, bold = false, color = GRAY_600 as [number,number,number]) {
     doc.setFont('helvetica', bold ? 'bold' : 'normal')
-    doc.setFontSize(bold ? 10 : 9)
-    doc.text(label, totalsX, y)
-    doc.text(value, pageW - 14, y, { align: 'right' })
+    doc.setFontSize(bold ? 9.5 : 8.5)
+    doc.setTextColor(...color)
+    doc.text(label, BOX_X + 4, ty)
+    doc.setTextColor(bold ? ...GRAY_900 : ...color)
+    doc.text(value, pageW - 18, ty, { align: 'right' })
+    ty += 6.5
   }
 
-  let ty = finalY
-  totRow('Subtotal', fmt(order.subtotal), false, ty)
-  ty += lineH
+  totLine('Subtotal', fmt(order.subtotal))
+
   if (order.discount_amount && order.discount_amount > 0) {
     const label = order.coupon_code ? `Coupon (${order.coupon_code})` : 'Discount'
-    doc.setTextColor(22, 163, 74)
-    totRow(label, `- ${fmt(order.discount_amount)}`, false, ty)
-    doc.setTextColor(30, 30, 30)
-    ty += lineH
+    totLine(label, `- ${fmt(order.discount_amount)}`, false, GREEN_600)
   }
-  totRow('Shipping', order.shipping > 0 ? fmt(order.shipping) : 'Free', false, ty)
-  ty += lineH
-  totRow('Tax', fmt(order.tax), false, ty)
-  ty += lineH
 
-  // Divider
-  doc.setDrawColor(200, 200, 200)
-  doc.line(totalsX, ty, pageW - 14, ty)
-  ty += 5
+  totLine('Shipping', order.shipping > 0 ? fmt(order.shipping) : 'FREE ✓')
+  totLine('Tax (incl.)', fmt(order.tax))
 
-  totRow('TOTAL', fmt(order.total), true, ty)
+  // Total box
+  ty += 1
+  const TOTAL_BOX_H = 10
+  doc.setFillColor(...BRAND_BLACK)
+  doc.roundedRect(BOX_X, ty - 1, BOX_W, TOTAL_BOX_H, 2, 2, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.setTextColor(...WHITE)
+  doc.text('TOTAL', BOX_X + 4, ty + 5.5)
+  doc.text(fmt(order.total), pageW - 18, ty + 5.5, { align: 'right' })
 
-  // ── Footer ───────────────────────────────────────────────
-  const footerY = doc.internal.pageSize.getHeight() - 16
-  doc.setDrawColor(220, 220, 220)
-  doc.line(14, footerY - 4, pageW - 14, footerY - 4)
-  doc.setFont('helvetica', 'normal')
+  // ── 7. PAID stamp (for delivered / confirmed orders) ──────────────────────
+  const paidStatuses = ['delivered', 'confirmed', 'shipped', 'processing', 'cod_upfront_paid']
+  if (paidStatuses.includes(order.status)) {
+    doc.setFontSize(22)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(22, 163, 74, 0.18)
+    doc.saveGraphicsState?.()
+    try {
+      // Rotate stamp
+      const stampX = 38
+      const stampY = ty + 5
+      doc.setTextColor(22, 163, 74)
+      doc.setDrawColor(22, 163, 74)
+      doc.setLineWidth(1.2)
+      doc.roundedRect(stampX - 10, stampY - 7, 36, 11, 2, 2, 'S')
+      doc.setFontSize(13)
+      doc.text('PAID', stampX + 8, stampY + 0.5, { align: 'center' })
+    } catch {}
+  }
+
+  // ── 8. Footer ─────────────────────────────────────────────────────────────
+  const FOOTER_Y = pageH - 18
+
+  // Footer accent line
+  doc.setDrawColor(...BRAND_ACCENT)
+  doc.setLineWidth(0.5)
+  doc.line(14, FOOTER_Y - 5, pageW - 14, FOOTER_Y - 5)
+
+  doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
-  doc.setTextColor(130, 130, 130)
-  doc.text('Thank you for shopping with Layers Factory! — www.layerfactory.in', 14, footerY)
-  doc.text('Returns accepted within 7 days. For queries: support@aitalk247.com  |  layerfactory.in/refund-policy', 14, footerY + 5)
-  doc.text(`Generated ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`, pageW - 14, footerY, { align: 'right' })
+  doc.setTextColor(...BRAND_BLACK)
+  doc.text('Layers Factory', 14, FOOTER_Y)
 
-  doc.save(`invoice-${orderId}.pdf`)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  doc.setTextColor(...GRAY_600)
+  doc.text('Thank you for your order! Returns accepted within 7 days.', 14, FOOTER_Y + 5)
+  doc.text('support@aitalk247.com  |  www.layerfactory.in/refund-policy', 14, FOOTER_Y + 10)
+
+  doc.setTextColor(...GRAY_200)
+  doc.text(`Generated on ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`, pageW - 14, FOOTER_Y, { align: 'right' })
+  doc.text(`Invoice #LF-${orderId}`, pageW - 14, FOOTER_Y + 5, { align: 'right' })
+
+  doc.save(`invoice-LF-${orderId}.pdf`)
 }

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { formatPrice } from '@/lib/utils'
 import { CheckCircle2, XCircle, CreditCard, Truck, Zap } from 'lucide-react'
 import InvoiceDownload from './InvoiceDownload'
+import GAPurchaseEvent from './GAPurchaseEvent'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -46,6 +47,20 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
+      {success === '1' && (
+        <GAPurchaseEvent
+          orderId={order.id}
+          total={Number(order.total)}
+          shipping={Number(order.shipping)}
+          tax={Number(order.tax)}
+          items={(order.order_items as any[]).map((item: any) => ({
+            id: item.id,
+            name: item.products?.name ?? item.snapshot?.name ?? 'Product',
+            quantity: item.quantity,
+            unit_price: Number(item.unit_price),
+          }))}
+        />
+      )}
       {/* Success banner */}
       {success === '1' && (
         <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-5 py-4 mb-6">

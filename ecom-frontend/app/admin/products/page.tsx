@@ -116,7 +116,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
                     {(product.categories as any)?.name ?? '—'}
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-gray-900">
-                    ${Number(product.price).toLocaleString('en-US')}
+                    ₹{Number(product.price).toLocaleString('en-IN')}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <span className={product.stock < 10 ? 'text-red-600 font-semibold' : 'text-gray-700'}>

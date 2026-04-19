@@ -84,7 +84,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <p className="text-xs text-gray-400 mb-1">Total Spent</p>
-              <p className="text-lg font-bold text-gray-900">${totalSpent.toLocaleString('en-US')}</p>
+              <p className="text-lg font-bold text-gray-900">₹{totalSpent.toLocaleString('en-IN')}</p>
             </div>
           </div>
         </div>
@@ -112,7 +112,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
                         #{order.id.slice(0, 8).toUpperCase()}
                       </Link>
                     </td>
-                    <td className="px-5 py-3 text-right font-medium">${Number(order.total).toLocaleString('en-US')}</td>
+                    <td className="px-5 py-3 text-right font-medium">₹{Number(order.total).toLocaleString('en-IN')}</td>
                     <td className="px-5 py-3">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[order.status] ?? 'bg-gray-100'}`}>
                         {order.status}

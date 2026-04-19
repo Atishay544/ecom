@@ -5,7 +5,8 @@ AGENTS.md
 GEMINI.md
 STATUS.md
 docs/
-/supabase/
+/supabase/.branches/
+/supabase/.temp/
 
 # Node
 node_modules/

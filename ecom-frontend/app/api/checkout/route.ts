@@ -44,6 +44,17 @@ export async function POST(req: NextRequest) {
   if (!Array.isArray(items) || items.length === 0)
     return NextResponse.json({ error: 'Cart is empty' }, { status: 400 })
 
+  if (items.length > 50)
+    return NextResponse.json({ error: 'Cart too large' }, { status: 400 })
+
+  // Validate each item: quantity must be a positive integer
+  for (const item of items) {
+    const qty = Number(item.quantity)
+    if (!Number.isInteger(qty) || qty < 1 || qty > 100)
+      return NextResponse.json({ error: 'Invalid item quantity' }, { status: 400 })
+    item.quantity = qty // normalise to number
+  }
+
   const requiredAddr = ['name', 'phone', 'line1', 'city', 'state', 'pincode'] as const
   for (const f of requiredAddr) {
     if (!shipping_address?.[f]?.trim())
@@ -56,6 +67,18 @@ export async function POST(req: NextRequest) {
 
   // ── 3. Validate products + compute subtotal ───────────────────────────────
   const admin = createAdminClient()
+
+  // COD flood protection: max 3 unconfirmed COD orders per user at a time
+  if (payment_method === 'cod' || payment_method === 'cod_upfront') {
+    const { count } = await admin
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .in('status', ['pending', 'confirmed'])
+      .in('payment_status', ['cod', 'partial'])
+    if ((count ?? 0) >= 3)
+      return NextResponse.json({ error: 'You have too many pending COD orders. Please complete or cancel existing orders first.' }, { status: 429 })
+  }
   const productIds: string[] = items.map((i: any) => i.product_id)
 
   const { data: products, error: prodErr } = await admin

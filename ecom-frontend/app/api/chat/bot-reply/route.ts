@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { rateLimit } from '@/lib/security/rate-limit'
+import { assertSameOrigin } from '@/lib/security/csrf'
 
 // ── Intent classification ─────────────────────────────────
 type Intent =
@@ -85,13 +87,26 @@ function buildOrderReply(
 
 // ── Main handler ──────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
+  const limited = await rateLimit(req, 'default')
+  if (limited) return limited
+
   let body: any
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
-  const { session_id, message, user_id } = body
+  const { session_id, message } = body
   if (!session_id || !message) {
     return NextResponse.json({ error: 'session_id and message are required' }, { status: 400 })
   }
+
+  // Resolve user_id from the authenticated session — never trust the request body.
+  // Unauthenticated users get null (guest chat still works, just no order lookup).
+  const { createServerClient } = await import('@/lib/supabase/server')
+  const serverClient = await createServerClient()
+  const { data: { user: authedUser } } = await serverClient.auth.getUser()
+  const user_id = authedUser?.id ?? null
 
   const supabase = createAdminClient()
 

@@ -1,22 +1,11 @@
+import { adminGuard } from '@/lib/security/admin-guard'
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { createServerClient } from '@/lib/supabase/server'
 
-async function requireAdmin() {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  // Fast-path: role in JWT app_metadata avoids a DB round-trip
-  if (user.app_metadata?.role === 'admin') return admin
-  const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return null
-  return admin
-}
 
 export async function POST(req: NextRequest) {
-  const admin = await requireAdmin()
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await adminGuard(req)
+  if (guard instanceof NextResponse) return guard
+  const { admin } = guard
 
   const body = await req.json()
 
@@ -35,8 +24,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const admin = await requireAdmin()
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await adminGuard(req)
+  if (guard instanceof NextResponse) return guard
+  const { admin } = guard
 
   const body = await req.json()
   const { id, ...fields } = body
@@ -47,8 +37,9 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const admin = await requireAdmin()
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await adminGuard(req)
+  if (guard instanceof NextResponse) return guard
+  const { admin } = guard
 
   const { id } = await req.json()
   const { error } = await admin.from('coupons').delete().eq('id', id)

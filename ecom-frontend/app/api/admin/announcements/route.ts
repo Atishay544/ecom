@@ -1,26 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { createServerClient } from '@/lib/supabase/server'
-
-async function requireAdmin() {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  // Fast-path: role in JWT app_metadata avoids a DB round-trip
-  if (user.app_metadata?.role === 'admin') return admin
-  const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return null
-  return admin
-}
+import { adminGuard } from '@/lib/security/admin-guard'
 
 export async function POST(req: NextRequest) {
-  const admin = await requireAdmin()
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await adminGuard(req)
+  if (guard instanceof NextResponse) return guard
+  const { admin } = guard
 
   const body = await req.json()
-
   const { data, error } = await admin.from('announcements').insert({
     message:    body.message?.trim(),
     bg_color:   body.bg_color   ?? '#000000',
@@ -38,21 +25,31 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const admin = await requireAdmin()
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await adminGuard(req)
+  if (guard instanceof NextResponse) return guard
+  const { admin } = guard
 
   const body = await req.json()
-  const { id, ...fields } = body
-
-  const { error } = await admin.from('announcements').update(fields).eq('id', id)
+  const { id, message, bg_color, text_color, link_url, link_text, is_active, starts_at, ends_at } = body
+  const { error } = await admin.from('announcements').update({
+    ...(message    !== undefined && { message:    message?.trim() }),
+    ...(bg_color   !== undefined && { bg_color }),
+    ...(text_color !== undefined && { text_color }),
+    ...(link_url   !== undefined && { link_url:   link_url?.trim() || null }),
+    ...(link_text  !== undefined && { link_text:  link_text?.trim() || null }),
+    ...(is_active  !== undefined && { is_active }),
+    ...(starts_at  !== undefined && { starts_at:  starts_at || null }),
+    ...(ends_at    !== undefined && { ends_at:    ends_at || null }),
+  }).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   revalidateTag('announcements')
   return NextResponse.json({ success: true })
 }
 
 export async function DELETE(req: NextRequest) {
-  const admin = await requireAdmin()
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const guard = await adminGuard(req)
+  if (guard instanceof NextResponse) return guard
+  const { admin } = guard
 
   const { id } = await req.json()
   const { error } = await admin.from('announcements').delete().eq('id', id)

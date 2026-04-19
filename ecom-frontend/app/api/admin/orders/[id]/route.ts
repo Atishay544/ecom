@@ -1,3 +1,4 @@
+import { adminGuard } from '@/lib/security/admin-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
@@ -8,16 +9,6 @@ const ALLOWED_STATUSES = new Set([
   'shipped', 'delivered', 'cancelled', 'refunded',
 ])
 
-async function requireAdmin() {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  if (user.app_metadata?.role === 'admin') return admin
-  const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return null
-  return admin
-}
 
 interface PageProps { params: Promise<{ id: string }> }
 

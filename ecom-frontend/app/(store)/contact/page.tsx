@@ -35,7 +35,7 @@ export default function ContactPage() {
               <h3 className="font-semibold text-gray-900">Email</h3>
             </div>
             <a href="mailto:atishayjain54@gmail.com" className="text-sm text-black underline underline-offset-2">atishayjain54@gmail.com</a>
-            <p className="text-xs text-gray-500 mt-2">Atishay Jain — Ganishka Collection</p>
+            <p className="text-xs text-gray-500 mt-2">Layers Factory — layerfactory.in</p>
           </div>
 
           <div className="bg-gray-50 rounded-2xl p-5">

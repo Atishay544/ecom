@@ -36,6 +36,14 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  experimental: {
+    // Cache dynamic RSC pages in the browser router for 30s
+    // Eliminates the 500ms skeleton flash when navigating back to /products, /category, etc.
+    staleTimes: {
+      dynamic: 30,  // dynamic pages (searchParams) cached 30s client-side
+      static: 300,  // static pages cached 5min client-side
+    },
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
@@ -45,7 +53,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "razorpay.com" },
     ],
     formats: ["image/avif", "image/webp"],
-    minimumCacheTTL: 60 * 60 * 24 * 7, // 7 days
+    minimumCacheTTL: 60 * 60 * 24 * 7,
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
   },
 };

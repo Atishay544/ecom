@@ -2,7 +2,6 @@ import { unstable_cache } from 'next/cache'
 import { createPublicClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Suspense } from 'react'
 import { formatPrice } from '@/lib/utils'
 import ProductFilters from './ProductFilters'
 import MobileFilterDrawer from './MobileFilterDrawer'
@@ -123,18 +122,16 @@ export default async function ProductsPage({ searchParams }: Props) {
           </div>
 
           {/* Grid */}
-          <Suspense fallback={<ProductSkeletonGrid />}>
-            {products.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                {products.map((p: any) => <ProductCard key={p.id} product={p} />)}
-              </div>
-            ) : (
-              <div className="text-center py-24 text-gray-400">
-                <p className="text-xl mb-2">No products found</p>
-                <Link href="/products" className="text-sm underline">Clear filters</Link>
-              </div>
-            )}
-          </Suspense>
+          {products.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {products.map((p: any) => <ProductCard key={p.id} product={p} />)}
+            </div>
+          ) : (
+            <div className="text-center py-24 text-gray-400">
+              <p className="text-xl mb-2">No products found</p>
+              <Link href="/products" className="text-sm underline">Clear filters</Link>
+            </div>
+          )}
 
           {/* Pagination */}
           {totalPages > 1 && (

@@ -105,19 +105,33 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 
   const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.layerfactory.in'
   const categoryUrl = `${BASE_URL}/category/${slug}`
-  const breadcrumbJsonLd = {
+  const combinedJsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home',     item: BASE_URL },
-      { '@type': 'ListItem', position: 2, name: 'Products', item: `${BASE_URL}/products` },
-      { '@type': 'ListItem', position: 3, name: category.name, item: categoryUrl },
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        '@id': `${categoryUrl}#collection`,
+        name: `${category.name} — LayerFactory`,
+        description: `Shop ${category.name} products online at LayerFactory. Premium quality, free shipping above ₹499.`,
+        url: categoryUrl,
+        ...(category.image_url ? { image: category.image_url } : {}),
+        numberOfItems: count,
+        publisher: { '@type': 'Organization', name: 'LayerFactory', url: BASE_URL },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home',     item: BASE_URL },
+          { '@type': 'ListItem', position: 2, name: 'Products', item: `${BASE_URL}/products` },
+          { '@type': 'ListItem', position: 3, name: category.name, item: categoryUrl },
+        ],
+      },
     ],
   }
 
   return (
     <div className="max-w-350 mx-auto px-4 sm:px-6 lg:px-10 py-10">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(combinedJsonLd) }} />
       {/* Category header */}
       {category.image_url && (
         <div className="relative h-32 sm:h-44 rounded-2xl overflow-hidden mb-6 bg-gray-100">

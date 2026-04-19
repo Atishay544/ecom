@@ -75,8 +75,51 @@ export default async function HomePage() {
   const heroSlides = banners.filter(b => b.sort_order === 0)
   const dealBanner = banners.find(b => b.sort_order === 1) ?? null
 
+  const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.layerfactory.in'
+  const homeJsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'WebPage',
+        '@id': `${BASE_URL}/#webpage`,
+        url: BASE_URL,
+        name: 'Layers Factory — Premium Marble Temples & Spiritual Decor India',
+        description: 'Buy premium handcrafted marble temples, divine sculptures (Ganesh, Lakshmi, Shiva) and spiritual home decor online. Free shipping above ₹499.',
+        isPartOf: { '@id': `${BASE_URL}/#website` },
+        about: { '@id': `${BASE_URL}/#organization` },
+        inLanguage: 'en-IN',
+      },
+      {
+        '@type': 'FAQPage',
+        mainEntity: [
+          {
+            '@type': 'Question',
+            name: 'What is Layers Factory?',
+            acceptedAnswer: { '@type': 'Answer', text: 'Layers Factory (layerfactory.in) is an Indian e-commerce store specialising in premium handcrafted marble temples (mandirs), divine deity sculptures — Ganesh, Lakshmi, Shiva, Durga, Krishna — and spiritual home decor. Every product is shipped pan-India.' },
+          },
+          {
+            '@type': 'Question',
+            name: 'Do you offer free shipping?',
+            acceptedAnswer: { '@type': 'Answer', text: 'Yes. Free shipping on all orders above ₹499 across India.' },
+          },
+          {
+            '@type': 'Question',
+            name: 'What payment methods are accepted?',
+            acceptedAnswer: { '@type': 'Answer', text: 'We accept UPI, credit/debit cards, net banking, and Cash on Delivery (COD) via Razorpay.' },
+          },
+          {
+            '@type': 'Question',
+            name: 'What is the return policy?',
+            acceptedAnswer: { '@type': 'Answer', text: '7-day hassle-free returns. Contact support@aitalk247.com with your order ID.' },
+          },
+        ],
+      },
+    ],
+  }
+
   return (
     <div>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(homeJsonLd) }} />
       {/* ── Hero Carousel — full bleed ── */}
       <HeroCarousel banners={heroSlides} />
 

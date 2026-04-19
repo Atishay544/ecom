@@ -11,9 +11,20 @@ import ProductSkeletonGrid from '@/components/ui/ProductSkeleton'
 
 export const revalidate = 30
 
-export const metadata = {
-  title: 'All Products',
-  description: 'Browse our full collection of products. Filter by category, price and more.',
+export async function generateMetadata() {
+  const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.layerfactory.in'
+  return {
+    title: 'All Products — Marble Temples & Spiritual Decor | LayerFactory',
+    description: 'Browse our full collection of premium marble temples, divine sculptures (Ganesh, Lakshmi, Shiva) and spiritual home decor. Free shipping above ₹499.',
+    alternates: { canonical: `${BASE_URL}/products` },
+    openGraph: {
+      title: 'All Products — LayerFactory',
+      description: 'Browse premium marble temples, divine sculptures and spiritual home decor. Free shipping above ₹499.',
+      url: `${BASE_URL}/products`,
+      type: 'website',
+      siteName: 'LayerFactory',
+    },
+  }
 }
 
 interface FilterParams {
@@ -71,8 +82,24 @@ export default async function ProductsPage({ searchParams }: Props) {
   const totalPages = Math.ceil(count / PAGE_SIZE)
   const sort = params.sort ?? 'newest'
 
+  const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.layerfactory.in'
+  const itemListJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: 'All Products — LayerFactory',
+    url: `${BASE_URL}/products`,
+    numberOfItems: count,
+    itemListElement: (products as any[]).slice(0, 20).map((p: any, i: number) => ({
+      '@type': 'ListItem',
+      position: (page - 1) * PAGE_SIZE + i + 1,
+      url: `${BASE_URL}/products/${p.slug}`,
+      name: p.name,
+    })),
+  }
+
   return (
     <div className="max-w-350 mx-auto px-4 sm:px-6 lg:px-10 py-10">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }} />
       <h1 className="text-2xl font-bold mb-6">All Products</h1>
 
       <div className="flex gap-6">

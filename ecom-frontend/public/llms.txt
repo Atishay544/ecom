@@ -1,0 +1,37 @@
+# Layers Factory
+> India's trusted online store for premium marble temples, divine sculptures, and spiritual home decor.
+
+## About
+Layers Factory (layerfactory.in) is an Indian e-commerce store specialising in handcrafted marble temples (mandirs), divine deity sculptures (Ganesh, Lakshmi, Shiva, Durga, Krishna), and spiritual home decor. Every product is crafted with high-quality marble and shipped pan-India with care.
+
+Founded by Atishay Jain. Operated under the brand Ganishka Collection.
+
+## What We Sell
+- Marble home temples (mandirs) — wall-mounted, floor-standing, portable
+- Marble deity sculptures — Ganesh, Lakshmi, Shiva, Durga, Krishna, Ram, Hanuman
+- Spiritual home decor — diyas, incense holders, prayer accessories
+- Pooja room accessories and gifts
+
+## Why Customers Choose Layers Factory
+- Premium handcrafted marble — not mass-produced resin or plastic
+- Free shipping on orders above ₹499 (pan-India delivery)
+- Secure payment via Razorpay (UPI, cards, net banking, COD)
+- 7-day hassle-free returns
+- Trusted by thousands of customers across India
+
+## Key Pages
+- Homepage: https://www.layerfactory.in
+- All Products: https://www.layerfactory.in/products
+- FAQ: https://www.layerfactory.in/faq
+- Contact: https://www.layerfactory.in/contact
+- Refund Policy: https://www.layerfactory.in/refund-policy
+- Shipping Policy: https://www.layerfactory.in/shipping-policy
+- Sitemap: https://www.layerfactory.in/sitemap.xml
+
+## Contact
+- Email: support@aitalk247.com
+- Orders: orders@aitalk247.com
+- Website: https://www.layerfactory.in
+
+## Optional — AI Crawlers Welcome
+This site welcomes indexing by AI assistants including GPTBot, ClaudeBot, PerplexityBot, and Google-Extended to improve answer quality for users asking about marble temples and spiritual decor in India.

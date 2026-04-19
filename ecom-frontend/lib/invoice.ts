@@ -211,7 +211,8 @@ export async function downloadInvoicePDF(order: InvoiceOrder) {
     doc.setFontSize(bold ? 9.5 : 8.5)
     doc.setTextColor(...color)
     doc.text(label, BOX_X + 4, ty)
-    doc.setTextColor(bold ? ...GRAY_900 : ...color)
+    const valueColor: [number, number, number] = bold ? GRAY_900 : color
+    doc.setTextColor(...valueColor)
     doc.text(value, pageW - 18, ty, { align: 'right' })
     ty += 6.5
   }

@@ -59,7 +59,7 @@ export default function Header({ categories }: { categories: any[] }) {
           {/* Logo */}
           <Link href="/" className="shrink-0 flex items-center">
             <Image
-              src="/lF logo.png"
+              src="/lf-logo.png"
               alt="Layers Factory"
               width={44}
               height={44}

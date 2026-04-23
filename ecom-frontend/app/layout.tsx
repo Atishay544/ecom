@@ -27,10 +27,10 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/lF logo.png', type: 'image/png' },
+      { url: '/lf-logo.png', type: 'image/png' },
     ],
-    apple: '/lF logo.png',
-    shortcut: '/lF logo.png',
+    apple: '/lf-logo.png',
+    shortcut: '/lf-logo.png',
   },
   description: "India's #1 online store for premium handcrafted marble temples & divine sculptures. Shop Ganesh, Lakshmi, Shiva idols and spiritual home decor. Free shipping above ₹499. 7-day returns. Trusted across India.",
   keywords: [

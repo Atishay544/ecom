@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/admin-auth'
 import ProductActions from './ProductActions'
@@ -32,7 +33,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
   // Build query
   let query = supabase
     .from('products')
-    .select('id, name, price, stock, is_active, category_id, categories(name)', { count: 'exact' })
+    .select('id, name, price, stock, is_active, category_id, images, categories(name)', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to)
 
@@ -108,8 +109,23 @@ export default async function ProductsPage({ searchParams }: PageProps) {
               {products?.map(product => (
                 <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <Link href={`/admin/products/${product.id}`} className="font-medium text-gray-900 hover:text-blue-600">
-                      {product.name}
+                    <Link href={`/admin/products/${product.id}`} className="flex items-center gap-3 group">
+                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 shrink-0 border border-gray-200">
+                        {(product as any).images?.[0] ? (
+                          <Image
+                            src={(product as any).images[0]}
+                            alt={product.name}
+                            width={40}
+                            height={40}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-lg text-gray-300">📦</div>
+                        )}
+                      </div>
+                      <span className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                        {product.name}
+                      </span>
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-gray-500">

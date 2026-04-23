@@ -35,7 +35,7 @@ export default function Footer({ categories = [] }: { categories?: Category[] })
         <div className="col-span-2 md:col-span-1">
           <Link href="/" className="inline-flex items-center mb-3">
             <Image
-              src="/lF logo.png"
+              src="/lf-logo.png"
               alt="Layers Factory"
               width={48}
               height={48}

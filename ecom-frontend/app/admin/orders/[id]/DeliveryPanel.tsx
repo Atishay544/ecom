@@ -81,6 +81,7 @@ export default function DeliveryPanel({
   const [ndrLoading, setNdrLoading] = useState(false)
 
   // Cancel state
+  const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelling, setCancelling] = useState(false)
 
   // Pickup state
@@ -253,7 +254,7 @@ export default function DeliveryPanel({
   }
 
   async function cancelShipment() {
-    if (!confirm('Cancel this shipment with the carrier? This cannot be undone.')) return
+    setCancelOpen(false)
     setCancelling(true); setError(null)
     try {
       const res  = await fetch(`/api/admin/orders/${orderId}/cancel-shipment`, { method: 'POST' })
@@ -432,13 +433,50 @@ export default function DeliveryPanel({
                     🚚 Request Pickup
                   </button>
                   <button
-                    onClick={cancelShipment}
+                    onClick={() => setCancelOpen(true)}
                     disabled={cancelling}
                     className="text-xs px-2 py-1 bg-red-50 hover:bg-red-100 border border-red-200 rounded text-red-700 transition-colors disabled:opacity-50 ml-auto"
                   >
                     {cancelling ? 'Cancelling…' : '✕ Cancel Shipment'}
                   </button>
                 </div>
+
+                {/* Cancel confirmation modal */}
+                {cancelOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setCancelOpen(false)} />
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                          <span className="text-red-600 text-lg">✕</span>
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-gray-900">Cancel Shipment</h3>
+                          <p className="text-xs text-gray-500">AWB: {booked?.awb}</p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        This will request cancellation with <span className="font-semibold">{booked?.partner}</span>. The shipment will be cancelled if it hasn't been picked up yet.
+                      </p>
+                      <p className="text-xs text-red-600 font-medium mb-5">⚠ This action cannot be undone.</p>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={cancelShipment}
+                          disabled={cancelling}
+                          className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
+                        >
+                          {cancelling ? 'Cancelling…' : 'Yes, Cancel Shipment'}
+                        </button>
+                        <button
+                          onClick={() => setCancelOpen(false)}
+                          className="flex-1 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                        >
+                          Keep Shipment
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* NDR form */}
                 {ndrOpen && (

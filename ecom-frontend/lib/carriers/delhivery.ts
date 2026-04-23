@@ -404,30 +404,43 @@ export interface WarehouseRecord {
   phone: string
 }
 
+function parseWarehouseJson(json: any): WarehouseRecord[] {
+  // Delhivery returns { data: [...] }, { warehouses: [...] }, { results: [...] }, or flat array
+  const raw: any[] = json?.data ?? json?.warehouses ?? json?.results ?? (Array.isArray(json) ? json : [])
+  return raw.map((w: any) => ({
+    name:    w.registered_name ?? w.name ?? w.warehouse_name ?? w.pickup_name ?? '',
+    address: w.address ?? w.pickup_address ?? '',
+    pin:     String(w.pin ?? w.pincode ?? w.pickup_pincode ?? ''),
+    city:    w.city ?? w.pickup_city ?? '',
+    state:   w.state ?? w.pickup_state ?? '',
+    phone:   w.phone ?? w.contact_phone ?? w.pickup_phone ?? '',
+  })).filter(w => w.name)
+}
+
 export async function delhiveryListWarehouses(
   cfg: Pick<CarrierConfig, 'api_key' | 'config'>
 ): Promise<{ success: boolean; warehouses: WarehouseRecord[]; error?: string }> {
+  const baseUrl = (cfg.config?.base_url ?? 'https://track.delhivery.com').replace(/\/$/, '')
+  const headers = { Authorization: `Token ${cfg.api_key}` }
+
+  // Try multiple endpoints — different Delhivery account tiers use different paths
+  const endpoints = [
+    `${baseUrl}/api/backend/clientwarehouse/`,
+    `${baseUrl}/api/p/pickup/`,
+    `${baseUrl}/fm/request/pickup/`,
+  ]
+
   try {
-    const baseUrl = (cfg.config?.base_url ?? 'https://track.delhivery.com').replace(/\/$/, '')
-    const res = await fetch(`${baseUrl}/api/backend/clientwarehouse/`, {
-      headers: { Authorization: `Token ${cfg.api_key}` },
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!res.ok) return { success: false, warehouses: [], error: `HTTP ${res.status}` }
-    const json = await res.json()
-
-    // Delhivery returns { data: [...] } or flat array
-    const raw: any[] = json?.data ?? json?.warehouses ?? (Array.isArray(json) ? json : [])
-    const warehouses: WarehouseRecord[] = raw.map((w: any) => ({
-      name:    w.registered_name ?? w.name ?? w.warehouse_name ?? '',
-      address: w.address ?? '',
-      pin:     String(w.pin ?? w.pincode ?? ''),
-      city:    w.city ?? '',
-      state:   w.state ?? '',
-      phone:   w.phone ?? w.contact_phone ?? '',
-    })).filter(w => w.name)
-
-    return { success: true, warehouses }
+    for (const url of endpoints) {
+      const res = await fetch(url, { headers, signal: AbortSignal.timeout(6000) })
+      if (res.status === 404 || res.status === 405) continue   // try next
+      if (!res.ok) return { success: false, warehouses: [], error: `HTTP ${res.status} from ${url}` }
+      const json = await res.json()
+      const warehouses = parseWarehouseJson(json)
+      if (warehouses.length > 0) return { success: true, warehouses }
+    }
+    // No endpoint worked — return empty but success so caller knows API is reachable
+    return { success: false, warehouses: [], error: 'No warehouse list endpoint available for this Delhivery account type. Enter the pickup location name manually.' }
   } catch (e: any) {
     return { success: false, warehouses: [], error: e.message }
   }

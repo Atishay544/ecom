@@ -65,7 +65,6 @@ export default function DeliveryPanel({
   // Pickup location (warehouse) selector
   const [pickupLocs, setPickupLocs]     = useState<string[]>([])
   const [selectedPickup, setSelectedPickup] = useState('')
-  const [pickupLocsErr, setPickupLocsErr]   = useState<string | null>(null)
 
   // Tracking state
   const [trackData, setTrackData] = useState<TrackData | null>(null)
@@ -103,7 +102,17 @@ export default function DeliveryPanel({
       })
       .catch(() => { setPkgWeight(500); setDimsLoaded(true) })
 
-    // Load Delhivery warehouse names for pickup location selector
+    // Load carrier config to pre-fill pickup location name, AND try warehouse list
+    fetch('/api/admin/delivery-partners')
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        if (!json) return
+        const delhivery = (json.data ?? []).find((p: any) => p.name === 'delhivery' && p.is_active)
+        if (delhivery?.pickup_location_name) setSelectedPickup(delhivery.pickup_location_name)
+      })
+      .catch(() => {})
+
+    // Try to load Delhivery warehouse names (may 404 for some account types)
     fetch('/api/admin/delhivery/warehouse')
       .then(r => r.ok ? r.json() : null)
       .then(json => {
@@ -111,9 +120,8 @@ export default function DeliveryPanel({
         const names: string[] = (json.warehouses ?? []).map((w: any) => w.name).filter(Boolean)
         if (names.length > 0) {
           setPickupLocs(names)
-          setSelectedPickup(names[0])
-        } else if (json.error) {
-          setPickupLocsErr(json.error)
+          // Only override if not already set from carrier config
+          setSelectedPickup(prev => prev || names[0])
         }
       })
       .catch(() => {})
@@ -333,25 +341,32 @@ export default function DeliveryPanel({
               )
             })()}
 
-            {/* Pickup location selector */}
-            {pickupLocs.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-200">
-                <label className="text-xs text-gray-400 block mb-1">Pickup Location (Delhivery warehouse)</label>
-                <select
-                  value={selectedPickup}
-                  onChange={e => setSelectedPickup(e.target.value)}
-                  className="w-full text-xs border border-blue-300 bg-blue-50 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-blue-800"
-                >
-                  {pickupLocs.map(name => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-blue-600 mt-1">This name is sent to Delhivery — it must match exactly.</p>
-              </div>
-            )}
-            {pickupLocsErr && (
-              <p className="text-xs text-amber-600 mt-2">⚠ Could not load warehouses: {pickupLocsErr}</p>
-            )}
+            {/* Pickup location — always editable, autocomplete if warehouse list loaded */}
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <label className="text-xs text-gray-400 block mb-1">
+                Pickup Location Name
+                <span className="ml-1 text-red-500 font-semibold">*</span>
+              </label>
+              <input
+                list="pickup-loc-list"
+                type="text"
+                value={selectedPickup}
+                onChange={e => setSelectedPickup(e.target.value)}
+                placeholder="e.g. Shop location, home — must match Delhivery exactly"
+                className="w-full text-xs border border-blue-300 bg-blue-50 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-blue-800 placeholder:font-normal placeholder:text-blue-400"
+              />
+              {pickupLocs.length > 0 && (
+                <datalist id="pickup-loc-list">
+                  {pickupLocs.map(name => <option key={name} value={name} />)}
+                </datalist>
+              )}
+              <p className="text-xs text-gray-400 mt-1">
+                Must match exactly a pickup location name in your Delhivery account.
+                {pickupLocs.length > 0
+                  ? ` ${pickupLocs.length} warehouse(s) loaded — select or type.`
+                  : ' Go to Delhivery → Settings → Pickup Locations to find the exact name.'}
+              </p>
+            </div>
           </div>
         )}
 

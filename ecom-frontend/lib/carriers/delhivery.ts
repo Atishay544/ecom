@@ -364,17 +364,23 @@ export async function delhiveryFetchLabel(
   for (const url of labelUrls) {
     try {
       const res = await fetch(url, { headers: auth(cfg), signal: AbortSignal.timeout(12000) })
-      if (!res.ok) { lastError = `HTTP ${res.status}`; continue }
+      if (!res.ok) { lastError = `HTTP ${res.status} from Delhivery label API`; continue }
 
       const contentType = res.headers.get('content-type') ?? ''
       const buffer = Buffer.from(await res.arrayBuffer())
 
-      // Reject HTML responses (some Delhivery endpoints return login page HTML on auth failure)
-      if (contentType.includes('text/html') || (buffer.length > 4 && buffer.slice(0, 4).toString() !== '%PDF')) {
-        if (contentType.includes('text/html')) { lastError = 'Delhivery returned HTML (check API key permissions)'; continue }
+      // Always validate PDF magic bytes — Delhivery sometimes returns HTML error pages
+      // with Content-Type: application/pdf when API key lacks label permissions
+      if (buffer.length < 5 || buffer.slice(0, 4).toString('ascii') !== '%PDF') {
+        const preview = buffer.slice(0, 300).toString('utf-8')
+        const isHtml  = preview.toLowerCase().includes('<!doctype') || preview.toLowerCase().includes('<html')
+        lastError = isHtml
+          ? 'Delhivery returned an HTML page instead of a PDF — the API key may not have label download permissions. Enable it in your Delhivery developer portal.'
+          : `Received invalid PDF content from Delhivery (${buffer.length} bytes, type: ${contentType || 'unknown'}). Try re-booking the shipment.`
+        continue
       }
 
-      return { ok: true, buffer, contentType: contentType || 'application/pdf' }
+      return { ok: true, buffer, contentType: 'application/pdf' }
     } catch (e: any) {
       lastError = e.message
     }

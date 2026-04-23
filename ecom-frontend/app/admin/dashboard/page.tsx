@@ -21,14 +21,16 @@ type OrderRow = {
   created_at: string; shipping_address: unknown
 }
 
+const REVENUE_STATUSES = new Set(['confirmed', 'cod_upfront_paid', 'processing', 'shipped', 'delivered'])
+
 function sumRev(rows: OrderRow[], from: Date, to: Date) {
   return rows
-    .filter(r => { const d = new Date(r.created_at); return d >= from && d < to })
+    .filter(r => { const d = new Date(r.created_at); return REVENUE_STATUSES.has(r.status) && d >= from && d < to })
     .reduce((s, r) => s + (Number(r.total) || 0), 0)
 }
 
 function countIn(rows: OrderRow[], from: Date, to: Date) {
-  return rows.filter(r => { const d = new Date(r.created_at); return d >= from && d < to }).length
+  return rows.filter(r => { const d = new Date(r.created_at); return REVENUE_STATUSES.has(r.status) && d >= from && d < to }).length
 }
 
 export default async function DashboardPage() {
@@ -62,6 +64,7 @@ export default async function DashboardPage() {
 
     db.from('orders')
       .select('id, total, status, created_at, shipping_address')
+      .in('status', ['confirmed', 'cod_upfront_paid', 'processing', 'shipped', 'delivered'])
       .order('created_at', { ascending: false })
       .limit(8),
 
@@ -118,6 +121,7 @@ export default async function DashboardPage() {
     seriesMap.set(key, { date: key, revenue: 0, orders: 0 })
   }
   for (const o of orders60) {
+    if (!REVENUE_STATUSES.has(o.status)) continue
     const key = o.created_at.slice(0, 10)
     const pt  = seriesMap.get(key)
     if (pt) { pt.revenue += Number(o.total) || 0; pt.orders++ }

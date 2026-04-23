@@ -111,6 +111,9 @@ export async function delhiveryBookShipment(
   input: OrderShipmentInput
 ): Promise<BookResult> {
   if (!cfg.api_key) return { success: false, waybill: null, error: 'API key not configured' }
+  if (!cfg.pickup_location_name?.trim()) {
+    return { success: false, waybill: null, error: 'Pickup location not configured. Go to Admin → Carriers → Edit Delhivery → "Load My Warehouses" to select your registered pickup location.' }
+  }
 
   const phone = input.customerPhone.replace(/\D/g, '').slice(-10)
   if (phone.length < 10) return { success: false, waybill: null, error: 'Customer phone number is missing or invalid (need 10 digits)' }

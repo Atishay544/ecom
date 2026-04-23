@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@/lib/supabase/server'
-import { bookCarrierShipment } from '@/lib/carriers'
+import { bookCarrierShipment, delhiveryListWarehouses } from '@/lib/carriers'
 import type { CarrierConfig, OrderShipmentInput } from '@/lib/carriers'
 
 async function requireAdmin() {
@@ -50,10 +50,40 @@ export async function POST(req: NextRequest, { params }: PageProps) {
 
   if (!carrier) return NextResponse.json({ error: 'Carrier not found or inactive. Configure it in Settings → Carriers.' }, { status: 404 })
 
-  const cfg = carrier as CarrierConfig
+  let cfg = carrier as CarrierConfig
 
   if (!cfg.api_key) {
     return NextResponse.json({ error: `${cfg.display_name} API key not configured. Add it in Settings → Delivery Partners.` }, { status: 503 })
+  }
+
+  // Auto-heal: if pickup_location_name is blank, fetch warehouses from Delhivery and save the first one
+  if (cfg.name === 'delhivery' && !cfg.pickup_location_name?.trim()) {
+    console.log('[book-shipment] pickup_location_name missing — auto-fetching warehouses from Delhivery')
+    const { success, warehouses, error: whErr } = await delhiveryListWarehouses(cfg)
+    if (success && warehouses.length > 0) {
+      const wh = warehouses[0]
+      const newConfig = {
+        ...cfg.config,
+        pickup_address: wh.address,
+        pickup_city:    wh.city,
+        pickup_state:   wh.state,
+        pickup_phone:   wh.phone,
+      }
+      await admin.from('delivery_partners' as any).update({
+        pickup_location_name: wh.name,
+        pickup_pincode:       wh.pin,
+        config:               newConfig,
+        updated_at:           new Date().toISOString(),
+      } as any).eq('id', cfg.id)
+      cfg = { ...cfg, pickup_location_name: wh.name, pickup_pincode: wh.pin, config: newConfig }
+      console.log('[book-shipment] auto-saved pickup_location_name:', wh.name,
+        warehouses.length > 1 ? `(${warehouses.length} warehouses found — used first; verify in Settings → Carriers)` : '')
+    } else {
+      const reason = whErr ?? 'No warehouses registered in Delhivery account'
+      return NextResponse.json({
+        error: `Pickup location not set and auto-fetch failed (${reason}). Go to Admin → Carriers → Edit Delhivery → "Load My Warehouses" and select your pickup location.`,
+      }, { status: 400 })
+    }
   }
 
   const addr  = (order as any).shipping_address as Record<string, string> ?? {}

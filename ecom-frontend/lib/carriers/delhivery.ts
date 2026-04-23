@@ -57,15 +57,20 @@ export async function delhiveryGetRates(
   fromPin: string,
   toPin: string,
   weightGrams: number,
-  isCOD: boolean
+  isCOD: boolean,
+  dims?: import('./types').PackageDimensions
 ): Promise<CarrierRate[]> {
   if (!cfg.api_key || !fromPin || !toPin) return mockRates(cfg)
+
+  // Volumetric weight: L × W × H (cm) / 5 = grams (Delhivery divisor 5000 cm³/kg → 5 cm³/g)
+  const volGrams = dims ? Math.round((dims.length * dims.width * dims.height) / 5) : 0
+  const chargedGrams = Math.max(500, weightGrams, volGrams)
 
   try {
     const makeUrl = (md: string) => {
       const u = new URL(`${base(cfg)}/api/v1/invoices/calculate`)
       u.searchParams.set('md', md)
-      u.searchParams.set('cgm', String(Math.max(500, weightGrams)))
+      u.searchParams.set('cgm', String(chargedGrams))
       u.searchParams.set('o_pin', fromPin)
       u.searchParams.set('d_pin', toPin)
       u.searchParams.set('ss', 'Delivered')
@@ -83,24 +88,37 @@ export async function delhiveryGetRates(
     if (expRes.ok) {
       const d = await expRes.json()
       const amount = d?.total_amount ?? d?.gross_amount
-      if (amount) rates.push({ carrier_id: cfg.id, carrier_name: cfg.display_name, carrier_slug: 'delhivery', service: 'Express', estimated_days: '2-3 days', rate: Number(amount), is_live: true })
+      if (amount) rates.push({
+        carrier_id: cfg.id, carrier_name: cfg.display_name, carrier_slug: 'delhivery',
+        service: 'Express', estimated_days: '2-3 days', rate: Number(amount),
+        is_live: true, chargedGrams,
+      })
     }
     if (surRes.ok) {
       const d = await surRes.json()
       const amount = d?.total_amount ?? d?.gross_amount
-      if (amount) rates.push({ carrier_id: cfg.id, carrier_name: cfg.display_name, carrier_slug: 'delhivery', service: 'Surface', estimated_days: '5-7 days', rate: Number(amount), is_live: true })
+      if (amount) rates.push({
+        carrier_id: cfg.id, carrier_name: cfg.display_name, carrier_slug: 'delhivery',
+        service: 'Surface', estimated_days: '5-7 days', rate: Number(amount),
+        is_live: true, chargedGrams,
+      })
     }
 
-    return rates.length > 0 ? rates : mockRates(cfg)
-  } catch {
+    if (rates.length > 0) return rates
+
+    // Log the raw responses for debugging
+    console.warn('[delhivery-rates] No amount in response. fromPin:', fromPin, 'toPin:', toPin, 'chargedGrams:', chargedGrams)
+    return mockRates(cfg)
+  } catch (e: any) {
+    console.warn('[delhivery-rates] fetch error:', e?.message)
     return mockRates(cfg)
   }
 }
 
 function mockRates(cfg: CarrierConfig): CarrierRate[] {
   return [
-    { carrier_id: cfg.id, carrier_name: cfg.display_name, carrier_slug: 'delhivery', service: 'Express', estimated_days: '2-3 days', rate: 85, is_live: false },
-    { carrier_id: cfg.id, carrier_name: cfg.display_name, carrier_slug: 'delhivery', service: 'Surface', estimated_days: '5-7 days', rate: 60, is_live: false },
+    { carrier_id: cfg.id, carrier_name: cfg.display_name, carrier_slug: 'delhivery', service: 'Express', estimated_days: '2-3 days', rate: 85, is_live: false, chargedGrams: 500 },
+    { carrier_id: cfg.id, carrier_name: cfg.display_name, carrier_slug: 'delhivery', service: 'Surface', estimated_days: '5-7 days', rate: 60, is_live: false, chargedGrams: 500 },
   ]
 }
 

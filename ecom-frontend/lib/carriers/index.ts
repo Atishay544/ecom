@@ -7,6 +7,7 @@ import {
 } from './delhivery'
 
 export type { CarrierConfig, CarrierRate, OrderShipmentInput, BookResult }
+export type { PackageDimensions } from './types'
 export type { TrackResult, TrackScan, NDRInput, NDRAction, PickupRequest, WarehouseInput, WarehouseRecord, ShipmentUpdateInput, PincodeResult } from './delhivery'
 
 export { delhiveryTrack, delhiveryNDRAction, delhiveryCreatePickup, delhiveryCreateWarehouse, delhiveryUpdateWarehouse, delhiveryListWarehouses, delhiveryTestConnection, delhiveryCheckPincode }
@@ -17,10 +18,11 @@ export async function getAllCarrierRates(
   fromPin: string,
   toPin: string,
   weightGrams: number,
-  isCOD: boolean
+  isCOD: boolean,
+  dims?: import('./types').PackageDimensions
 ): Promise<CarrierRate[]> {
   const results = await Promise.allSettled(
-    carriers.map(c => getCarrierRates(c, fromPin, toPin, weightGrams, isCOD))
+    carriers.map(c => getCarrierRates(c, fromPin, toPin, weightGrams, isCOD, dims))
   )
 
   const all: CarrierRate[] = []
@@ -35,13 +37,13 @@ async function getCarrierRates(
   fromPin: string,
   toPin: string,
   weightGrams: number,
-  isCOD: boolean
+  isCOD: boolean,
+  dims?: import('./types').PackageDimensions
 ): Promise<CarrierRate[]> {
   switch (cfg.name) {
     case 'delhivery':
-      return delhiveryGetRates(cfg, fromPin, toPin, weightGrams, isCOD)
+      return delhiveryGetRates(cfg, fromPin, toPin, weightGrams, isCOD, dims)
     default:
-      // Generic mock for unconfigured carriers
       return [{ carrier_id: cfg.id, carrier_name: cfg.display_name, carrier_slug: cfg.name, service: 'Standard', estimated_days: '3-5 days', rate: 75, is_live: false }]
   }
 }

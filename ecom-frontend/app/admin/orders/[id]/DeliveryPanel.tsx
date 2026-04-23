@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Rate {
@@ -11,6 +11,7 @@ interface Rate {
   estimated_days: string
   rate: number
   is_live: boolean
+  chargedGrams?: number
 }
 
 interface Scan {
@@ -57,6 +58,10 @@ export default function DeliveryPanel({
       : null
   )
 
+  const [pkgWeight, setPkgWeight] = useState(0)  // grams, 0 = not loaded yet
+  const [pkgDims, setPkgDims]     = useState({ length: 12, width: 12, height: 12 })  // cm
+  const [dimsLoaded, setDimsLoaded] = useState(false)
+
   // Tracking state
   const [trackData, setTrackData] = useState<TrackData | null>(null)
   const [tracking, setTracking]   = useState(false)
@@ -82,10 +87,30 @@ export default function DeliveryPanel({
   const [pickupLoading, setPickupLoading] = useState(false)
   const [pickupResult, setPickupResult]   = useState<string | null>(null)
 
+  useEffect(() => {
+    fetch(`/api/admin/orders/${orderId}/shipping-rates`)
+      .then(r => r.json())
+      .then(json => {
+        if (json.weightGrams) setPkgWeight(json.weightGrams)
+        if (json.dims) setPkgDims(json.dims)
+        setDimsLoaded(true)
+      })
+      .catch(() => { setPkgWeight(500); setDimsLoaded(true) })
+  }, [orderId])
+
   async function fetchRates() {
     setLoading(true); setError(null); setWarning(null)
     try {
-      const res  = await fetch(`/api/admin/orders/${orderId}/shipping-rates`)
+      const res  = await fetch(`/api/admin/orders/${orderId}/shipping-rates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          weightGrams: pkgWeight,
+          length: pkgDims.length,
+          width:  pkgDims.width,
+          height: pkgDims.height,
+        }),
+      })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Failed to fetch rates')
       if (json.warning) setWarning(json.warning)
@@ -234,6 +259,56 @@ export default function DeliveryPanel({
       </div>
 
       <div className="px-5 py-4 space-y-3">
+
+        {/* Package dimensions */}
+        {dimsLoaded && (
+          <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+            <p className="text-xs font-semibold text-gray-600 mb-2">Package Details</p>
+            <div className="grid grid-cols-4 gap-2">
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Weight (g)</label>
+                <input
+                  type="number" min={1} value={pkgWeight}
+                  onChange={e => setPkgWeight(Math.max(1, Number(e.target.value)))}
+                  className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">L (cm)</label>
+                <input
+                  type="number" min={1} value={pkgDims.length}
+                  onChange={e => setPkgDims(d => ({ ...d, length: Math.max(1, Number(e.target.value)) }))}
+                  className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">W (cm)</label>
+                <input
+                  type="number" min={1} value={pkgDims.width}
+                  onChange={e => setPkgDims(d => ({ ...d, width: Math.max(1, Number(e.target.value)) }))}
+                  className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">H (cm)</label>
+                <input
+                  type="number" min={1} value={pkgDims.height}
+                  onChange={e => setPkgDims(d => ({ ...d, height: Math.max(1, Number(e.target.value)) }))}
+                  className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
+            </div>
+            {pkgWeight > 0 && (() => {
+              const vol = Math.round((pkgDims.length * pkgDims.width * pkgDims.height) / 5)
+              const charged = Math.max(pkgWeight, vol)
+              return (
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Actual: {pkgWeight}g · Volumetric: {vol}g · <span className="font-medium text-gray-600">Charged: {charged}g</span>
+                </p>
+              )
+            })()}
+          </div>
+        )}
 
         {/* Booked state */}
         {booked && (
@@ -433,7 +508,10 @@ export default function DeliveryPanel({
                       {isCheapest && <span className="text-xs px-1.5 py-0.5 bg-green-200 text-green-800 rounded font-medium">Cheapest</span>}
                       {!rate.is_live && <span className="text-xs px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded border border-yellow-200">estimated</span>}
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5">{rate.service} · {rate.estimated_days}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {rate.service} · {rate.estimated_days}
+                      {rate.chargedGrams && <span className="ml-1">· {rate.chargedGrams}g charged</span>}
+                    </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold text-gray-900">₹{Number(rate.rate).toLocaleString('en-IN')}</span>

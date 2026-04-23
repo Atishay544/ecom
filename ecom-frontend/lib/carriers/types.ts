@@ -19,6 +19,12 @@ export interface CarrierConfig {
   is_active: boolean
 }
 
+export interface PackageDimensions {
+  length: number  // cm
+  width: number   // cm
+  height: number  // cm
+}
+
 export interface CarrierRate {
   carrier_id: string
   carrier_name: string
@@ -27,6 +33,7 @@ export interface CarrierRate {
   estimated_days: string
   rate: number
   is_live: boolean       // false = mock/estimated
+  chargedGrams?: number
 }
 
 export interface OrderShipmentInput {

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter, usePathname } from 'next/navigation'
 import { ShoppingCart, Heart, Search, User, Menu, X, ChevronDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -56,8 +57,15 @@ export default function Header({ categories }: { categories: any[] }) {
           </button>
 
           {/* Logo */}
-          <Link href="/" className="text-lg font-extrabold tracking-tight text-gray-900 shrink-0 hover:text-indigo-600 transition-colors duration-200">
-            LayerFactory
+          <Link href="/" className="shrink-0 flex items-center">
+            <Image
+              src="/lF logo.png"
+              alt="Layers Factory"
+              width={44}
+              height={44}
+              className="h-10 w-auto object-contain"
+              priority
+            />
           </Link>
 
           {/* Category nav (desktop) */}

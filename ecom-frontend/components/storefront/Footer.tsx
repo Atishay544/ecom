@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 
 type Category = { id: string; name: string; slug: string }
 
@@ -32,7 +33,15 @@ export default function Footer({ categories = [] }: { categories?: Category[] })
       <div className="max-w-350 mx-auto px-4 sm:px-6 lg:px-10 grid grid-cols-2 md:grid-cols-5 gap-8 mb-10">
         {/* Brand */}
         <div className="col-span-2 md:col-span-1">
-          <h2 className="text-white font-bold text-xl mb-3">Layers Factory</h2>
+          <Link href="/" className="inline-flex items-center mb-3">
+            <Image
+              src="/lF logo.png"
+              alt="Layers Factory"
+              width={48}
+              height={48}
+              className="h-12 w-auto object-contain"
+            />
+          </Link>
           <p className="text-sm leading-relaxed">India's trusted store for premium marble temples & divine sculptures. Free shipping above ₹499.</p>
           <div className="flex gap-3 mt-4">
             {socials.map(s => (

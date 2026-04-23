@@ -25,6 +25,13 @@ export const metadata: Metadata = {
     default: "Layers Factory — Premium Marble Temples & Spiritual Decor India",
     template: "%s | Layers Factory",
   },
+  icons: {
+    icon: [
+      { url: '/lF logo.png', type: 'image/png' },
+    ],
+    apple: '/lF logo.png',
+    shortcut: '/lF logo.png',
+  },
   description: "India's #1 online store for premium handcrafted marble temples & divine sculptures. Shop Ganesh, Lakshmi, Shiva idols and spiritual home decor. Free shipping above ₹499. 7-day returns. Trusted across India.",
   keywords: [
     "marble temple", "marble mandir", "home temple online india", "buy marble mandir",

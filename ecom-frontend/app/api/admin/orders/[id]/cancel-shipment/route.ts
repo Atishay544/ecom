@@ -46,9 +46,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   if (result.success) {
+    // Clear delivery fields and mark order cancelled so customer sees updated status
     await admin
       .from('orders')
-      .update({ delivery_awb: null, delivery_partner: null, delivery_service: null, delivery_rate: null, updated_at: new Date().toISOString() })
+      .update({
+        status:           'cancelled',
+        delivery_awb:     null,
+        delivery_partner: null,
+        delivery_service: null,
+        delivery_rate:    null,
+        updated_at:       new Date().toISOString(),
+      })
       .eq('id', orderId)
   }
 

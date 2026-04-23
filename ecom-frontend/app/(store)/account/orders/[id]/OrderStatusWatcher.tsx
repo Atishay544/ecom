@@ -1,0 +1,42 @@
+'use client'
+
+import { useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+
+/**
+ * Invisible component — subscribes to Supabase Realtime for this order row.
+ * When the admin or a webhook updates the order (status, AWB, etc.) the server
+ * component is refreshed automatically so the customer sees live status.
+ */
+export default function OrderStatusWatcher({ orderId }: { orderId: string }) {
+  const router      = useRouter()
+  const channelRef  = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+
+    channelRef.current = supabase
+      .channel(`order-status-${orderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event:  'UPDATE',
+          schema: 'public',
+          table:  'orders',
+          filter: `id=eq.${orderId}`,
+        },
+        () => {
+          // Re-run the server component to pick up the latest status/AWB
+          router.refresh()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current)
+    }
+  }, [orderId, router])
+
+  return null
+}

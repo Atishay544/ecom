@@ -277,7 +277,11 @@ export async function delhiveryCancel(
     // Delhivery sometimes returns XML instead of JSON — handle both
     if (text.trimStart().startsWith('<')) {
       const lower = text.toLowerCase()
-      const success = lower.includes('cancellation_scheduled') ||
+      // Terminal-state phrases mean the shipment is already gone — safe to clear AWB
+      const alreadyGone = lower.includes('already cancel') || lower.includes('no such waybill') ||
+                          lower.includes('waybill not found') || lower.includes('does not exist')
+      const success = alreadyGone ||
+             lower.includes('cancellation_scheduled') ||
              (lower.includes('cancelled') && !lower.includes('cannot')) ||
              (lower.includes('success') && !lower.includes('false'))
       const error = success ? undefined : 'Delhivery rejected cancellation (shipment may be in transit or already dispatched)'
@@ -286,8 +290,17 @@ export async function delhiveryCancel(
 
     const json = JSON.parse(text)
     const success = json?.cancellation_status === true || json?.[waybill]?.cancellation_status === true
-    const error   = success ? undefined : (json?.error ?? json?.message ?? 'Delhivery rejected cancellation — shipment may already be dispatched')
-    return { success, error }
+    if (!success) {
+      const errMsg = (json?.error ?? json?.message ?? '').toLowerCase()
+      // Terminal-state rejections — shipment is already gone from Delhivery side
+      if (errMsg.includes('already cancel') || errMsg.includes('no such waybill') ||
+          errMsg.includes('waybill not found') || errMsg.includes('does not exist') ||
+          errMsg.includes('not found')) {
+        return { success: true }
+      }
+      return { success: false, error: json?.error ?? json?.message ?? 'Delhivery rejected cancellation — shipment may already be dispatched' }
+    }
+    return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message ?? 'Network error during cancellation' }
   }
@@ -382,7 +395,10 @@ export async function delhiveryFetchLabel(
   const labelUrls = [
     `${base(cfg)}/api/p/packing_slip?wbns=${waybill}&pdf=true`,
     `${base(cfg)}/api/p/packing_slip?wbns=${waybill}`,
+    `${base(cfg)}/api/p/packing_slip/${waybill}/`,
     `${base(cfg)}/api/kinko/v1/invoice/shipments/awb?awbs=${waybill}&pdf=true`,
+    `${base(cfg)}/api/labelling/v1/labels/${waybill}`,
+    `${base(cfg)}/api/p/generate/pdf?waybill=${waybill}`,
   ]
 
   let lastError = ''

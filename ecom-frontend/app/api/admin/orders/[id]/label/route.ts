@@ -34,11 +34,11 @@ export async function GET(_req: NextRequest, { params }: PageProps) {
 
   if (!awb) return NextResponse.json({ error: 'No AWB for this order' }, { status: 404 })
 
-  // Find carrier config by display_name
+  // Find carrier config by display_name (case-insensitive)
   const { data: carriers } = await admin
     .from('delivery_partners' as any)
     .select('*')
-    .eq('display_name', partner)
+    .ilike('display_name', partner ?? '')
     .limit(1)
 
   const cfg = (carriers?.[0] ?? null) as CarrierConfig | null

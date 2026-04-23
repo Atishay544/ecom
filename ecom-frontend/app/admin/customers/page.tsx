@@ -32,18 +32,38 @@ export default async function CustomersPage({ searchParams }: PageProps) {
 
   const { data: customers, count } = await query
 
-  // Get order counts per customer
   const customerIds = customers?.map(c => c.id) ?? []
-  const orderCountMap = new Map<string, number>()
-  if (customerIds.length > 0) {
-    const { data: orderCounts } = await supabase
-      .from('orders')
-      .select('user_id')
-      .in('user_id', customerIds)
 
-    orderCounts?.forEach(o => {
-      orderCountMap.set(o.user_id, (orderCountMap.get(o.user_id) ?? 0) + 1)
-    })
+  // Fetch emails from Supabase Auth
+  const emailMap = new Map<string, string>()
+  try {
+    const { data: { users: authUsers } } = await supabase.auth.admin.listUsers({ page: 1, perPage: 200 })
+    for (const u of authUsers ?? []) {
+      if (u.email) emailMap.set(u.id, u.email)
+    }
+  } catch { /* auth admin may not be available in all envs */ }
+
+  // Fetch most-recent order + items per customer
+  const orderMap = new Map<string, { count: number; items: string[] }>()
+  if (customerIds.length > 0) {
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('id, user_id, order_items(quantity, snapshot, products(name))')
+      .in('user_id', customerIds)
+      .order('created_at', { ascending: false })
+      .limit(customerIds.length * 6)
+
+    for (const o of orders ?? []) {
+      if (!orderMap.has(o.user_id)) {
+        const items = ((o as any).order_items ?? []).map((i: any) => {
+          const name = i.products?.name ?? i.snapshot?.name ?? 'Product'
+          return `${name} ×${i.quantity}`
+        })
+        orderMap.set(o.user_id, { count: 1, items })
+      } else {
+        orderMap.get(o.user_id)!.count++
+      }
+    }
   }
 
   const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
@@ -80,35 +100,56 @@ export default async function CustomersPage({ searchParams }: PageProps) {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Name</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Phone</th>
+                <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Customer</th>
+                <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Contact</th>
                 <th className="text-right px-4 py-3 text-xs text-gray-500 font-medium">Orders</th>
+                <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Last Purchase</th>
                 <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Joined</th>
-                <th className="text-right px-4 py-3 text-xs text-gray-500 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {customers?.map(customer => (
-                <tr key={customer.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <Link href={`/customers/${customer.id}`} className="font-medium text-gray-900 hover:text-blue-600">
-                      {customer.full_name || <span className="text-gray-400 italic">No name</span>}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">{customer.phone ?? '—'}</td>
-                  <td className="px-4 py-3 text-right text-gray-700 font-medium">
-                    {orderCountMap.get(customer.id) ?? 0}
-                  </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
-                    {new Date(customer.created_at).toLocaleDateString('en-US')}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link href={`/customers/${customer.id}`} className="text-xs text-blue-600 hover:underline">
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+              {customers?.map(customer => {
+                const od    = orderMap.get(customer.id)
+                const email = emailMap.get(customer.id) ?? ''
+                return (
+                  <tr key={customer.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <Link href={`/admin/customers/${customer.id}`} className="font-medium text-gray-900 hover:text-blue-600">
+                        {customer.full_name || <span className="text-gray-400 italic">No name</span>}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 space-y-0.5">
+                      {email && (
+                        <p className="text-xs">
+                          <a href={`mailto:${email}`} className="text-blue-600 hover:underline">{email}</a>
+                        </p>
+                      )}
+                      {customer.phone && (
+                        <p className="text-xs">
+                          <a href={`tel:${customer.phone}`} className="text-gray-500 hover:text-green-600">{customer.phone}</a>
+                        </p>
+                      )}
+                      {!email && !customer.phone && <span className="text-gray-300 text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-700 font-medium">
+                      {od?.count ?? 0}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs max-w-xs">
+                      {od?.items?.length ? (
+                        <span className="block truncate">
+                          {od.items.slice(0, 2).join(', ')}
+                          {od.items.length > 2 && <span className="text-gray-400"> +{od.items.length - 2} more</span>}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
+                      {new Date(customer.created_at).toLocaleDateString('en-IN')}
+                    </td>
+                  </tr>
+                )
+              })}
               {(!customers || customers.length === 0) && (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-gray-400">No customers found.</td>
@@ -123,10 +164,10 @@ export default async function CustomersPage({ searchParams }: PageProps) {
             <p className="text-sm text-gray-500">Showing {from + 1}–{Math.min(to + 1, count ?? 0)} of {count}</p>
             <div className="flex gap-2">
               {page > 1 && (
-                <Link href={`/customers?q=${q}&page=${page - 1}`} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Previous</Link>
+                <Link href={`/admin/customers?q=${q}&page=${page - 1}`} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Previous</Link>
               )}
               {page < totalPages && (
-                <Link href={`/customers?q=${q}&page=${page + 1}`} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Next</Link>
+                <Link href={`/admin/customers?q=${q}&page=${page + 1}`} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Next</Link>
               )}
             </div>
           </div>

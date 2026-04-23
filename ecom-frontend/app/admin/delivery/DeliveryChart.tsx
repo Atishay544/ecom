@@ -200,20 +200,40 @@ function NDRModal({ orderId, awb, onClose, onDone }: { orderId: string; awb: str
 // ── Cancel modal ──────────────────────────────────────────────────────────────
 
 function CancelModal({ orderId, awb, carrier, onClose, onDone }: { orderId: string; awb: string; carrier: string; onClose: () => void; onDone: () => void }) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [loading, setLoading]       = useState(false)
+  const [forceLoading, setForceLoading] = useState(false)
+  const [error, setError]           = useState('')
+  const [carrierRejected, setCarrierRejected] = useState(false)
 
   async function confirm() {
-    setLoading(true); setError('')
+    setLoading(true); setError(''); setCarrierRejected(false)
     try {
       const res  = await fetch(`/api/admin/orders/${orderId}/cancel-shipment`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data.success) { setError(data.error ?? 'Cancellation failed'); return }
+      if (!res.ok || !data.success) {
+        setError(data.error ?? 'Cancellation failed')
+        setCarrierRejected(true)
+        return
+      }
       onDone()
     } catch (e: any) {
       setError(e.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function forceClear() {
+    setForceLoading(true); setError('')
+    try {
+      const res  = await fetch(`/api/admin/orders/${orderId}/force-clear-awb`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) { setError(data.error ?? 'Force clear failed'); return }
+      onDone()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setForceLoading(false)
     }
   }
 
@@ -223,7 +243,21 @@ function CancelModal({ orderId, awb, carrier, onClose, onDone }: { orderId: stri
         <h3 className="font-semibold text-gray-900 mb-1">Cancel Shipment</h3>
         <p className="text-xs text-gray-500 mb-1">AWB <span className="font-mono text-gray-700">{awb}</span> via {carrier}</p>
         <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">This cannot be undone once accepted by the carrier.</p>
-        {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
+        {error && (
+          <div className="mb-3">
+            <p className="text-xs text-red-600">{error}</p>
+            {carrierRejected && (
+              <div className="mt-2 p-2.5 bg-orange-50 border border-orange-200 rounded-lg">
+                <p className="text-xs text-orange-800 font-medium mb-1">Carrier API rejected — cancel from Delhivery dashboard instead.</p>
+                <p className="text-xs text-orange-700 mb-2">Or use Force Clear to remove the AWB from this order so you can rebook.</p>
+                <button onClick={forceClear} disabled={forceLoading}
+                  className="w-full py-1.5 bg-orange-600 text-white rounded-lg text-xs font-medium hover:bg-orange-700 disabled:opacity-50">
+                  {forceLoading ? 'Clearing…' : 'Force Clear AWB (rebook later)'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-2 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50">Keep Shipment</button>
           <button onClick={confirm} disabled={loading}

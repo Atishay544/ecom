@@ -110,6 +110,37 @@ const getMonthlySold = unstable_cache(
   { revalidate: 3600 }
 )
 
+// ── Social proof display count ───────────────────────────────────────────────
+// Deterministic but organic-looking. Seeded by productId + year+month so it
+// resets each calendar month and grows day-by-day within the month.
+function getDisplaySoldCount(productId: string, realSoldCount: number) {
+  const now        = new Date()
+  const dayOfMonth = now.getDate()
+  const monthSeed  = now.getFullYear() * 100 + (now.getMonth() + 1)
+
+  // FNV-1a hash seeded by product + current month
+  let h = 0x811c9dc5 >>> 0
+  const seed = `${productId}${monthSeed}`
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+
+  const base   = 80  + (h % 300)                          // product base 80–379
+  const rate   = 3   + ((h >>> 8)  % 6)                   // daily growth rate 3–8
+  const noise  = 5   + ((h >>> 16) % 24)                  // off-round noise 5–28
+  const display = Math.max(realSoldCount || 0, base + dayOfMonth * rate + noise)
+
+  // Weekly sub-count: ~15–22% of display + small noise
+  const wNoise  = 1 + ((h >>> 24) % 7)
+  const weekly  = Math.max(3, Math.round(display * (0.15 + ((h >>> 20) % 8) * 0.01)) + wNoise)
+
+  // Rotate label per product so they don't all say the same thing
+  const weekLabel = (['last week', 'this week', 'past 7 days'] as const)[(h >>> 28) % 3]
+
+  return { display, weekly, weekLabel }
+}
+
 // ── Streamed fetchers (behind Suspense) ──────────────────────────────────────
 
 const getProductReviews = unstable_cache(
@@ -388,23 +419,20 @@ export default async function ProductDetailPage({ params }: Props) {
           </div>
 
           {/* Trust / social proof banner */}
-          {(monthlySold > 0 || product.sold_count > 0) && (
-            <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 rounded-xl px-4 py-2.5">
-              <Users size={15} className="text-rose-500 shrink-0" />
-              <span className="text-sm font-semibold text-rose-700">
-                Loved by{' '}
-                <strong>{(product.sold_count ?? 0) + (monthlySold > 0 ? 0 : 0) > 0
-                  ? (product.sold_count ?? 0).toLocaleString('en-IN')
-                  : monthlySold.toLocaleString('en-IN')
-                } shoppers</strong>
-              </span>
-              {monthlySold >= 5 && (
-                <span className="ml-auto text-xs text-rose-500 font-medium">
-                  {monthlySold} bought this month
+          {(() => {
+            const { display, weekly, weekLabel } = getDisplaySoldCount(product.id, product.sold_count ?? 0)
+            return (
+              <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 rounded-xl px-4 py-2.5">
+                <Users size={15} className="text-rose-500 shrink-0" />
+                <span className="text-sm font-semibold text-rose-700">
+                  Loved by <strong>{display.toLocaleString('en-IN')} shoppers</strong>
                 </span>
-              )}
-            </div>
-          )}
+                <span className="ml-auto text-xs text-rose-500 font-medium whitespace-nowrap">
+                  {weekly} bought {weekLabel}
+                </span>
+              </div>
+            )
+          })()}
 
           {/* Variants */}
           {variants.length > 0 && (

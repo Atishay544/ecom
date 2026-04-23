@@ -7,6 +7,7 @@ import { formatPrice } from '@/lib/utils'
 import { CheckCircle2, XCircle, CreditCard, Truck, Zap } from 'lucide-react'
 import InvoiceDownload from './InvoiceDownload'
 import GAPurchaseEvent from './GAPurchaseEvent'
+import OrderStatusWatcher from './OrderStatusWatcher'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -48,6 +49,9 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
+      {/* Invisible — subscribes to Supabase Realtime and refreshes page on any order update */}
+      <OrderStatusWatcher orderId={order.id} />
+
       {success === '1' && (
         <GAPurchaseEvent
           orderId={order.id}

@@ -24,8 +24,8 @@ export async function POST(req: NextRequest, { params }: PageProps) {
   const { id } = await params
   const body = await req.json()
 
-  // body: { carrier_id, service }
-  const { carrier_id, service } = body
+  // body: { carrier_id, service, pickup_location_name? }
+  const { carrier_id, service, pickup_location_name } = body
 
   // Load order first so we can fall back to delivery_partner name if no carrier_id
   const { data: order } = await admin
@@ -84,6 +84,19 @@ export async function POST(req: NextRequest, { params }: PageProps) {
         error: `Pickup location not set and auto-fetch failed (${reason}). Go to Admin → Carriers → Edit Delhivery → "Load My Warehouses" and select your pickup location.`,
       }, { status: 400 })
     }
+  }
+
+  // Apply pickup_location_name override from request body (admin selected from warehouse dropdown)
+  if (pickup_location_name?.trim()) {
+    const override = pickup_location_name.trim()
+    if (override !== cfg.pickup_location_name) {
+      await admin.from('delivery_partners' as any).update({
+        pickup_location_name: override,
+        updated_at:           new Date().toISOString(),
+      } as any).eq('id', cfg.id)
+      console.log('[book-shipment] pickup_location_name overridden to:', override)
+    }
+    cfg = { ...cfg, pickup_location_name: override }
   }
 
   const addr  = (order as any).shipping_address as Record<string, string> ?? {}

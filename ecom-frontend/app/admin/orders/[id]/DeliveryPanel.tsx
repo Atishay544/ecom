@@ -62,6 +62,11 @@ export default function DeliveryPanel({
   const [pkgDims, setPkgDims]     = useState({ length: 12, width: 12, height: 12 })  // cm
   const [dimsLoaded, setDimsLoaded] = useState(false)
 
+  // Pickup location (warehouse) selector
+  const [pickupLocs, setPickupLocs]     = useState<string[]>([])
+  const [selectedPickup, setSelectedPickup] = useState('')
+  const [pickupLocsErr, setPickupLocsErr]   = useState<string | null>(null)
+
   // Tracking state
   const [trackData, setTrackData] = useState<TrackData | null>(null)
   const [tracking, setTracking]   = useState(false)
@@ -88,6 +93,7 @@ export default function DeliveryPanel({
   const [pickupResult, setPickupResult]   = useState<string | null>(null)
 
   useEffect(() => {
+    // Load package defaults
     fetch(`/api/admin/orders/${orderId}/shipping-rates`)
       .then(r => r.json())
       .then(json => {
@@ -96,6 +102,21 @@ export default function DeliveryPanel({
         setDimsLoaded(true)
       })
       .catch(() => { setPkgWeight(500); setDimsLoaded(true) })
+
+    // Load Delhivery warehouse names for pickup location selector
+    fetch('/api/admin/delhivery/warehouse')
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        if (!json) return
+        const names: string[] = (json.warehouses ?? []).map((w: any) => w.name).filter(Boolean)
+        if (names.length > 0) {
+          setPickupLocs(names)
+          setSelectedPickup(names[0])
+        } else if (json.error) {
+          setPickupLocsErr(json.error)
+        }
+      })
+      .catch(() => {})
   }, [orderId])
 
   async function fetchRates() {
@@ -149,7 +170,11 @@ export default function DeliveryPanel({
       const res  = await fetch(`/api/admin/orders/${orderId}/book-shipment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ carrier_id: rate.carrier_id || undefined, service: rate.service }),
+        body: JSON.stringify({
+          carrier_id:           rate.carrier_id || undefined,
+          service:              rate.service,
+          pickup_location_name: selectedPickup || undefined,
+        }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Booking failed')
@@ -307,6 +332,26 @@ export default function DeliveryPanel({
                 </p>
               )
             })()}
+
+            {/* Pickup location selector */}
+            {pickupLocs.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <label className="text-xs text-gray-400 block mb-1">Pickup Location (Delhivery warehouse)</label>
+                <select
+                  value={selectedPickup}
+                  onChange={e => setSelectedPickup(e.target.value)}
+                  className="w-full text-xs border border-blue-300 bg-blue-50 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-blue-800"
+                >
+                  {pickupLocs.map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-blue-600 mt-1">This name is sent to Delhivery — it must match exactly.</p>
+              </div>
+            )}
+            {pickupLocsErr && (
+              <p className="text-xs text-amber-600 mt-2">⚠ Could not load warehouses: {pickupLocsErr}</p>
+            )}
           </div>
         )}
 

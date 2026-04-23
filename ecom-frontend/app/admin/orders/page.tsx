@@ -31,7 +31,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   await requireAdmin()
 
   const params = await searchParams
-  const statusFilter = params.status ?? ''
+  const statusFilter = params.status === 'all' ? '' : (params.status ?? 'confirmed')
   const searchQuery = params.q ?? ''
   const page = Math.max(1, parseInt(params.page ?? '1', 10))
   const from = (page - 1) * PAGE_SIZE
@@ -81,11 +81,10 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       {/* Status filter tabs with counts */}
       <div className="flex flex-wrap gap-2 mb-4">
         <Link
-          href="/admin/orders"
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${!statusFilter ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+          href="/admin/orders?status=all"
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${params.status === 'all' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}
         >
           All
-          {!statusFilter && <span className="ml-1.5 text-xs opacity-70">{count ?? 0}</span>}
         </Link>
         {ALL_STATUSES.map(s => {
           const n = countMap[s] ?? 0

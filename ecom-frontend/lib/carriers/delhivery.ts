@@ -245,8 +245,14 @@ export async function delhiveryUpdateShipment(
     body: form.toString(),
     signal: AbortSignal.timeout(8000),
   })
-  const json = await res.json()
-  return { success: json?.success === true || res.ok, error: json?.error }
+  const text = await res.text()
+  if (text.trimStart().startsWith('<')) return { success: res.ok }
+  try {
+    const json = JSON.parse(text)
+    return { success: json?.success === true || res.ok, error: json?.error }
+  } catch {
+    return { success: res.ok }
+  }
 }
 
 // ── 5. CANCEL SHIPMENT ────────────────────────────────────────────────────
@@ -264,8 +270,24 @@ export async function delhiveryCancel(
     body: form.toString(),
     signal: AbortSignal.timeout(8000),
   })
-  const json = await res.json()
-  return json?.cancellation_status === true || json?.[waybill]?.cancellation_status === true
+  const text = await res.text()
+
+  // Delhivery sometimes returns XML instead of JSON — handle both
+  if (text.trimStart().startsWith('<')) {
+    // XML response: success indicators vary — look for cancellation_scheduled or waybill mention
+    const lower = text.toLowerCase()
+    return lower.includes('cancellation_scheduled') ||
+           lower.includes('cancelled') ||
+           (lower.includes('success') && !lower.includes('false'))
+  }
+
+  try {
+    const json = JSON.parse(text)
+    return json?.cancellation_status === true || json?.[waybill]?.cancellation_status === true
+  } catch {
+    // Can't parse — treat HTTP 200 as success
+    return res.ok
+  }
 }
 
 // ── 6. TRACK SHIPMENT ─────────────────────────────────────────────────────

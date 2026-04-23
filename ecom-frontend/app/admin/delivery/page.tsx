@@ -1,17 +1,17 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/admin-auth'
 import DeliveryDashboard from './DeliveryChart'
-import type { DayPoint, PartnerStat, OutForDeliveryOrder, DeliveryOrder } from './DeliveryChart'
+import type { DayPoint, PartnerStat, OutForDeliveryOrder, DeliveryOrder, BulkOrder } from './DeliveryChart'
 
-export const metadata = { title: 'Delivery Analytics' }
+export const metadata = { title: 'Delivery Management' }
 
 export default async function DeliveryPage() {
   await requireAdmin()
   const supabase = createAdminClient()
 
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+  const ninetyDaysAgo  = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
-  // Fetch all orders with delivery info from last 90 days
+  // ── Analytics orders (shipped, last 90 days, has delivery partner) ──────────
   const { data: rawOrders } = await (supabase as any)
     .from('orders')
     .select('id, status, total, metadata, shipping_address, delivery_partner, delivery_awb, delivery_rate, delivery_service, created_at, user_id')
@@ -19,16 +19,30 @@ export default async function DeliveryPage() {
     .not('delivery_partner', 'is', null)
     .order('created_at', { ascending: false })
 
-  // Fetch active delivery partners
+  // ── Bulk-management orders (all actionable: pending/processing/shipped, last 30 days) ─
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const { data: rawBulk } = await (supabase as any)
+    .from('orders')
+    .select(`
+      id, status, total, metadata, shipping_address,
+      delivery_partner, delivery_awb, delivery_rate, delivery_service, created_at, user_id,
+      order_items(quantity, unit_price, snapshot)
+    `)
+    .gte('created_at', thirtyDaysAgo)
+    .in('status', ['pending', 'confirmed', 'cod_upfront_paid', 'processing', 'shipped', 'delivered'])
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  // ── Active delivery partners ────────────────────────────────────────────────
   const { data: rawPartners } = await (supabase as any)
     .from('delivery_partners')
-    .select('id, display_name')
+    .select('id, display_name, pickup_pincode')
     .eq('is_active', true)
     .order('display_name', { ascending: true })
 
-  // Fetch customer profiles for orders
-  const orders = (rawOrders ?? []) as any[]
-  const userIds = [...new Set(orders.map((o: any) => o.user_id).filter(Boolean))]
+  // ── Customer profiles ───────────────────────────────────────────────────────
+  const allOrders = [...(rawOrders ?? []), ...(rawBulk ?? [])] as any[]
+  const userIds   = [...new Set(allOrders.map((o: any) => o.user_id).filter(Boolean))]
   const { data: profiles } = userIds.length > 0
     ? await supabase.from('profiles').select('id, full_name, phone').in('id', userIds as string[])
     : { data: [] }
@@ -36,13 +50,22 @@ export default async function DeliveryPage() {
 
   const partners: string[] = (rawPartners ?? []).map((p: any) => p.display_name)
 
-  // ── Build structured orders ─────────────────────────────────────────────────
-  const deliveryOrders: DeliveryOrder[] = orders.map((o: any) => {
+  // ── Helper ──────────────────────────────────────────────────────────────────
+  function customerInfo(o: any) {
     const addr    = (o.shipping_address ?? {}) as Record<string, string>
-    const meta    = (o.metadata ?? {}) as Record<string, any>
     const profile = profileMap.get(o.user_id)
-    const name    = profile?.full_name ?? addr.name ?? 'Customer'
-    const phone   = profile?.phone ?? addr.phone ?? ''
+    return {
+      name:    profile?.full_name ?? addr.name ?? 'Customer',
+      phone:   profile?.phone ?? addr.phone ?? '',
+      pincode: addr.pincode ?? addr.zip ?? '',
+    }
+  }
+
+  // ── Analytics orders ────────────────────────────────────────────────────────
+  const analyticsOrders = (rawOrders ?? []) as any[]
+  const deliveryOrders: DeliveryOrder[] = analyticsOrders.map((o: any) => {
+    const meta = (o.metadata ?? {}) as Record<string, any>
+    const ci   = customerInfo(o)
     return {
       id:             o.id,
       orderId:        o.id,
@@ -50,11 +73,39 @@ export default async function DeliveryPage() {
       partner:        o.delivery_partner ?? null,
       service:        o.delivery_service ?? null,
       status:         o.status,
-      customerName:   name,
-      customerPhone:  phone,
+      customerName:   ci.name,
+      customerPhone:  ci.phone,
       total:          Number(o.total ?? 0),
       deliveryCost:   Number(o.delivery_rate ?? 0),
       date:           (o.created_at as string).slice(0, 10),
+      trackingStatus: meta.tracking_status ?? null,
+    }
+  })
+
+  // ── Bulk management orders ───────────────────────────────────────────────────
+  const bulkOrders: BulkOrder[] = ((rawBulk ?? []) as any[]).map((o: any) => {
+    const items        = (o.order_items ?? []) as any[]
+    const meta         = (o.metadata ?? {}) as Record<string, any>
+    const ci           = customerInfo(o)
+    const weightGrams  = items.reduce((sum: number, i: any) =>
+      sum + ((i.snapshot?.weight_grams ?? 500) * (i.quantity ?? 1)), 0)
+    const isCOD = meta.payment_method === 'cod' || meta.payment_method === 'cod_upfront'
+    return {
+      id:             o.id,
+      orderId:        o.id,
+      status:         o.status,
+      customerName:   ci.name,
+      customerPhone:  ci.phone,
+      customerPin:    ci.pincode,
+      total:          Number(o.total ?? 0),
+      deliveryCost:   Number(o.delivery_rate ?? 0),
+      awb:            o.delivery_awb ?? null,
+      partner:        o.delivery_partner ?? null,
+      service:        o.delivery_service ?? null,
+      date:           (o.created_at as string).slice(0, 10),
+      weightGrams:    Math.max(500, weightGrams),
+      isCOD,
+      paymentMethod:  meta.payment_method ?? 'prepaid',
       trackingStatus: meta.tracking_status ?? null,
     }
   })
@@ -71,8 +122,8 @@ export default async function DeliveryPage() {
 
   const totalCost    = shippedOrders.reduce((s, o) => s + o.deliveryCost, 0)
   const totalRevenue = delivered.reduce((s, o) => s + o.total, 0)
-  const successRate  = shippedOrders.length > 0
-    ? Math.round((delivered.length / (delivered.length + returned.length || 1)) * 100)
+  const successRate  = (delivered.length + returned.length) > 0
+    ? Math.round((delivered.length / (delivered.length + returned.length)) * 100)
     : 0
 
   const totalStats = {
@@ -87,7 +138,7 @@ export default async function DeliveryPage() {
     avgCost:         shippedOrders.length > 0 ? totalCost / shippedOrders.length : 0,
   }
 
-  // ── Out for delivery with phone ─────────────────────────────────────────────
+  // ── Out for delivery ────────────────────────────────────────────────────────
   const outForDelivery: OutForDeliveryOrder[] = outOfd.map(o => ({
     id:            o.id,
     orderId:       o.orderId,
@@ -129,7 +180,6 @@ export default async function DeliveryPage() {
     const d = new Date(today.getTime() - i * 86400000).toISOString().slice(0, 10)
     dayMap.set(d, { date: d, revenue: 0, deliveryCost: 0, returns: 0, shipped: 0 })
   }
-
   for (const o of shippedOrders) {
     const dp = dayMap.get(o.date)
     if (!dp) continue
@@ -138,7 +188,6 @@ export default async function DeliveryPage() {
     if (o.status === 'delivered') dp.revenue += o.total
     if (o.status === 'cancelled' || o.status === 'refunded') dp.returns += o.total
   }
-
   const timeSeries = [...dayMap.values()]
 
   return (
@@ -148,6 +197,7 @@ export default async function DeliveryPage() {
       partnerStats={partnerStats}
       outForDelivery={outForDelivery}
       orders={deliveryOrders}
+      bulkOrders={bulkOrders}
       totalStats={totalStats}
     />
   )

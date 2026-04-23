@@ -197,8 +197,16 @@ export default function DeliveryPanel({
     setDownloading(true)
     try {
       const res = await fetch(`/api/admin/orders/${orderId}/label`)
-      if (!res.ok) { const j = await res.json(); throw new Error(j.error ?? 'Failed') }
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error ?? `Label fetch failed (HTTP ${res.status})`)
+      }
+      const contentType = res.headers.get('content-type') ?? ''
+      if (contentType.includes('text/html')) {
+        throw new Error('Delhivery returned HTML instead of PDF — check API key permissions for label access.')
+      }
       const blob = await res.blob()
+      if (blob.size === 0) throw new Error('Label PDF is empty. Try re-booking the shipment.')
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href = url; a.download = `label-${booked?.awb ?? orderId}.pdf`; a.click()
@@ -249,9 +257,9 @@ export default function DeliveryPanel({
     setCancelling(true); setError(null)
     try {
       const res  = await fetch(`/api/admin/orders/${orderId}/cancel-shipment`, { method: 'POST' })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? 'Cancel failed')
-      if (!json.success) throw new Error('Carrier did not confirm cancellation')
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? `Cancel failed (HTTP ${res.status})`)
+      if (!json.success) throw new Error(json.error ?? 'Carrier did not confirm cancellation')
       setBooked(null)
       setTrackData(null)
       router.refresh()

@@ -353,20 +353,33 @@ export async function delhiveryFetchLabel(
   cfg: CarrierConfig,
   waybill: string
 ): Promise<{ ok: boolean; buffer?: Buffer; contentType?: string; error?: string }> {
-  try {
-    const res = await fetch(`${base(cfg)}/api/p/packing_slip?wbns=${waybill}&pdf=true`, {
-      headers: auth(cfg),
-      signal: AbortSignal.timeout(12000),
-    })
-    if (!res.ok) return { ok: false, error: `Label fetch failed: ${res.status}` }
-    return {
-      ok:          true,
-      buffer:      Buffer.from(await res.arrayBuffer()),
-      contentType: res.headers.get('content-type') ?? 'application/pdf',
+  // Try multiple Delhivery label endpoints — different account tiers use different paths
+  const labelUrls = [
+    `${base(cfg)}/api/p/packing_slip?wbns=${waybill}&pdf=true`,
+    `${base(cfg)}/api/p/packing_slip?wbns=${waybill}`,
+    `${base(cfg)}/api/kinko/v1/invoice/shipments/awb?awbs=${waybill}&pdf=true`,
+  ]
+
+  let lastError = ''
+  for (const url of labelUrls) {
+    try {
+      const res = await fetch(url, { headers: auth(cfg), signal: AbortSignal.timeout(12000) })
+      if (!res.ok) { lastError = `HTTP ${res.status}`; continue }
+
+      const contentType = res.headers.get('content-type') ?? ''
+      const buffer = Buffer.from(await res.arrayBuffer())
+
+      // Reject HTML responses (some Delhivery endpoints return login page HTML on auth failure)
+      if (contentType.includes('text/html') || (buffer.length > 4 && buffer.slice(0, 4).toString() !== '%PDF')) {
+        if (contentType.includes('text/html')) { lastError = 'Delhivery returned HTML (check API key permissions)'; continue }
+      }
+
+      return { ok: true, buffer, contentType: contentType || 'application/pdf' }
+    } catch (e: any) {
+      lastError = e.message
     }
-  } catch (e: any) {
-    return { ok: false, error: e.message }
   }
+  return { ok: false, error: lastError || 'Label fetch failed' }
 }
 
 // ── 9. PICKUP REQUEST CREATION ────────────────────────────────────────────

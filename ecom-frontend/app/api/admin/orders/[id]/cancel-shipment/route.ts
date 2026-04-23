@@ -38,7 +38,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (!carrier) return NextResponse.json({ error: 'Carrier config not found' }, { status: 404 })
 
-  const success = await cancelCarrierShipment(carrier as CarrierConfig, order.delivery_awb)
+  let success = false
+  let cancelError: string | undefined
+  try {
+    success = await cancelCarrierShipment(carrier as CarrierConfig, order.delivery_awb)
+  } catch (e: any) {
+    cancelError = e?.message ?? 'Carrier API error during cancellation'
+  }
+
+  if (cancelError) {
+    return NextResponse.json({ success: false, error: cancelError }, { status: 502 })
+  }
 
   if (success) {
     await admin

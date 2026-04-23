@@ -29,7 +29,7 @@ export default async function DeliveryPage() {
       order_items(quantity, unit_price, snapshot)
     `)
     .gte('created_at', thirtyDaysAgo)
-    .in('status', ['pending', 'confirmed', 'cod_upfront_paid', 'processing', 'shipped', 'delivered'])
+    .in('status', ['confirmed', 'cod_upfront_paid', 'processing', 'shipped'])
     .order('created_at', { ascending: false })
     .limit(200)
 

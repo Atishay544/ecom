@@ -1,11 +1,11 @@
 import { unstable_cache } from 'next/cache'
 import { cache } from 'react'
 import { Suspense } from 'react'
-import { createPublicClient } from '@/lib/supabase/admin'
+import { createPublicClient, createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatPrice } from '@/lib/utils'
-import { Star, Shield, RefreshCw, Truck } from 'lucide-react'
+import { Star, Shield, RefreshCw, Truck, Leaf, Award, Users, Package } from 'lucide-react'
 import ProductGallery from './ProductGallery'
 import VariantSelector from './VariantSelector'
 import AddToCartButton from './AddToCartButton'
@@ -91,6 +91,23 @@ const getOffers = unstable_cache(
   },
   ['offers-list'],
   { revalidate: 3600, tags: ['offers'] }
+)
+
+// Monthly sold count (last 30 days) — cached 1h, no tags needed
+const getMonthlySold = unstable_cache(
+  async (productId: string) => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return 0
+    const supabase = createAdminClient()
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const { count } = await supabase
+      .from('order_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('product_id', productId)
+      .gte('created_at', since)
+    return count ?? 0
+  },
+  ['product-monthly-sold'],
+  { revalidate: 3600 }
 )
 
 // ── Streamed fetchers (behind Suspense) ──────────────────────────────────────
@@ -221,9 +238,10 @@ export default async function ProductDetailPage({ params }: Props) {
   if (!product || product.is_active === false) notFound()
 
   // Only what's needed to render above-the-fold — fast parallel fetch
-  const [variants, offers] = await Promise.all([
+  const [variants, offers, monthlySold] = await Promise.all([
     getProductVariants(product.id),
     getOffers(),
+    getMonthlySold(product.id),
   ])
 
   const discount = product.compare_price
@@ -355,8 +373,8 @@ export default async function ProductDetailPage({ params }: Props) {
             <p className="text-xs text-gray-400 mt-1">inclusive of all taxes</p>
           </div>
 
-          {/* Stock */}
-          <div className="flex items-center gap-2">
+          {/* Social proof + stock */}
+          <div className="flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
               product.stock === 0 ? 'bg-red-50 text-red-600'
               : product.stock < 10 ? 'bg-amber-50 text-amber-700'
@@ -368,6 +386,25 @@ export default async function ProductDetailPage({ params }: Props) {
             </span>
             {product.sku && <span className="text-xs text-gray-400">SKU: {product.sku}</span>}
           </div>
+
+          {/* Trust / social proof banner */}
+          {(monthlySold > 0 || product.sold_count > 0) && (
+            <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 rounded-xl px-4 py-2.5">
+              <Users size={15} className="text-rose-500 shrink-0" />
+              <span className="text-sm font-semibold text-rose-700">
+                Loved by{' '}
+                <strong>{(product.sold_count ?? 0) + (monthlySold > 0 ? 0 : 0) > 0
+                  ? (product.sold_count ?? 0).toLocaleString('en-IN')
+                  : monthlySold.toLocaleString('en-IN')
+                } shoppers</strong>
+              </span>
+              {monthlySold >= 5 && (
+                <span className="ml-auto text-xs text-rose-500 font-medium">
+                  {monthlySold} bought this month
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Variants */}
           {variants.length > 0 && (
@@ -392,6 +429,29 @@ export default async function ProductDetailPage({ params }: Props) {
             }} />
           </div>
 
+          {/* Product quality attributes — from metadata.attributes */}
+          {(() => {
+            const attrs = (product.metadata as any)?.attributes as Record<string, string> | undefined
+            if (!attrs || Object.keys(attrs).length === 0) return null
+            return (
+              <div className="border-t border-gray-100 pt-4">
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(attrs).map(([key, val]) => (
+                    <div key={key} className="flex gap-2.5 items-start p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                      <div className="w-4 h-4 mt-0.5 text-gray-400 shrink-0">
+                        {key.toLowerCase().includes('fabric') || key.toLowerCase().includes('material') ? <Leaf size={14} /> : <Package size={14} />}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{key}</p>
+                        <p className="text-xs font-medium text-gray-700 mt-0.5">{val}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Trust badges */}
           <div className="grid grid-cols-3 gap-3 border-t border-gray-100 pt-5">
             <div className="flex flex-col items-center gap-1 text-center p-3 bg-gray-50 rounded-xl">
@@ -400,12 +460,54 @@ export default async function ProductDetailPage({ params }: Props) {
             </div>
             <div className="flex flex-col items-center gap-1 text-center p-3 bg-gray-50 rounded-xl">
               <RefreshCw size={18} className="text-gray-500" />
-              <span className="text-[11px] font-medium text-gray-600 leading-tight">Easy Returns</span>
+              <span className="text-[11px] font-medium text-gray-600 leading-tight">7-Day Returns</span>
             </div>
             <div className="flex flex-col items-center gap-1 text-center p-3 bg-gray-50 rounded-xl">
               <Shield size={18} className="text-gray-500" />
               <span className="text-[11px] font-medium text-gray-600 leading-tight">Secure Pay</span>
             </div>
+          </div>
+
+          {/* Delivery timeline */}
+          {(() => {
+            const today    = new Date()
+            const d = (n: number) => {
+              const d = new Date(today.getTime() + n * 86400000)
+              return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
+            }
+            return (
+              <div className="border-t border-gray-100 pt-4">
+                <div className="flex items-start gap-0">
+                  {[
+                    { label: 'Order Placed', date: d(0), done: true },
+                    { label: 'Processing', date: `${d(1)}–${d(2)}`, done: false },
+                    { label: 'Dispatched', date: `${d(2)}–${d(3)}`, done: false },
+                    { label: 'Delivered', date: `${d(4)}–${d(6)}`, done: false },
+                  ].map((step, i, arr) => (
+                    <div key={step.label} className="flex items-start flex-1">
+                      <div className="flex flex-col items-center flex-1">
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                          step.done ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-500'
+                        }`}>
+                          {step.done ? '✓' : i + 1}
+                        </div>
+                        <p className="text-[10px] font-medium text-gray-700 mt-1 text-center leading-tight">{step.label}</p>
+                        <p className="text-[9px] text-gray-400 text-center">{step.date}</p>
+                      </div>
+                      {i < arr.length - 1 && (
+                        <div className={`h-0.5 flex-1 mt-2.5 ${step.done ? 'bg-gray-900' : 'bg-gray-200'}`} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Handcrafted quality badge */}
+          <div className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+            <Award size={16} className="text-amber-600 shrink-0" />
+            <span className="text-xs text-amber-800 font-medium leading-tight">Handcrafted in India · Premium artisan quality · Every piece is unique</span>
           </div>
 
           {/* Description */}

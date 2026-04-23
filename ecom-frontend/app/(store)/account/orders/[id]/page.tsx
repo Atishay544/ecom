@@ -26,6 +26,7 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
     .from('orders')
     .select(`
       *,
+      delivery_awb, delivery_partner, delivery_service,
       order_items(
         id,quantity,unit_price,
         products(name,slug,images)
@@ -194,10 +195,37 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
               <p>{order.shipping_address.phone}</p>
             </address>
           )}
-          {order.tracking_number && (
-            <div className="mt-3 pt-3 border-t">
-              <p className="text-xs text-gray-500">Tracking</p>
-              <p className="text-sm font-mono font-medium">{order.tracking_number}</p>
+
+          {/* Shipment tracking — prefer delivery_awb, fall back to tracking_number */}
+          {((order as any).delivery_awb || order.tracking_number) && (
+            <div className="mt-3 pt-3 border-t space-y-1">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tracking</p>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <p className="text-sm font-mono font-semibold text-gray-800">
+                    {(order as any).delivery_awb ?? order.tracking_number}
+                  </p>
+                  {(order as any).delivery_partner && (
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      via {(order as any).delivery_partner}
+                      {(order as any).delivery_service ? ` · ${(order as any).delivery_service}` : ''}
+                    </p>
+                  )}
+                </div>
+                {(order as any).delivery_partner?.toLowerCase().includes('delhivery') && (
+                  <a
+                    href={`https://www.delhivery.com/track/package/${(order as any).delivery_awb ?? order.tracking_number}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 font-medium transition-colors"
+                  >
+                    <Truck size={12} /> Track Shipment
+                  </a>
+                )}
+                {!(order as any).delivery_partner?.toLowerCase().includes('delhivery') && (order as any).delivery_awb && (
+                  <span className="text-xs text-gray-400">Use above AWB on carrier site</span>
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -236,6 +236,72 @@ function CancelModal({ orderId, awb, carrier, onClose, onDone }: { orderId: stri
   )
 }
 
+// ── Pickup modal ──────────────────────────────────────────────────────────────
+
+function PickupModal({ orderId, awb, onClose, onDone }: {
+  orderId: string; awb: string; onClose: () => void; onDone: () => void
+}) {
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+  const [date, setDate]     = useState(tomorrow)
+  const [time, setTime]     = useState('10:00')
+  const [qty, setQty]       = useState(1)
+  const [loading, setLoading] = useState(false)
+  const [error, setError]   = useState('')
+
+  async function submit() {
+    if (!date || !time) { setError('Date and time are required'); return }
+    setLoading(true); setError('')
+    try {
+      const res  = await fetch(`/api/admin/orders/${orderId}/pickup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pickup_date: date, pickup_time: time, quantity: qty }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) { setError(data.error ?? 'Pickup request failed'); return }
+      onDone()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-xl">
+        <h3 className="font-semibold text-gray-900 mb-1">Request Pickup</h3>
+        <p className="text-xs text-gray-500 mb-4 font-mono">AWB: {awb}</p>
+        <div className="space-y-3 mb-4">
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Pickup Date</label>
+            <input type="date" value={date} min={tomorrow} onChange={e => setDate(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Pickup Time</label>
+            <input type="time" value={time} onChange={e => setTime(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">No. of Packages</label>
+            <input type="number" min={1} max={50} value={qty} onChange={e => setQty(Number(e.target.value))}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
+          </div>
+        </div>
+        {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button onClick={submit} disabled={loading}
+            className="flex-1 py-2 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 disabled:opacity-50">
+            {loading ? 'Scheduling…' : 'Schedule Pickup'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Per-row action state ───────────────────────────────────────────────────────
 
 interface RowState {
@@ -248,7 +314,6 @@ interface RowState {
   trackLoading?: boolean
   trackStatus?: string
   trackError?: string
-  pickupLoading?: boolean
   pickupDone?: boolean
   awb?: string | null
   cancelDone?: boolean
@@ -260,8 +325,9 @@ function BulkTable({ orders }: { orders: BulkOrder[] }) {
   const [rowState, setRowState]   = useState<Record<string, RowState>>({})
   const [selected, setSelected]   = useState<Set<string>>(new Set())
   const [filterTab, setFilterTab] = useState<'all' | 'unbooked' | 'shipped'>('all')
-  const [ndrModal, setNdrModal]   = useState<{ orderId: string; awb: string } | null>(null)
+  const [ndrModal, setNdrModal]     = useState<{ orderId: string; awb: string } | null>(null)
   const [cancelModal, setCancelModal] = useState<{ orderId: string; awb: string; carrier: string } | null>(null)
+  const [pickupModal, setPickupModal] = useState<{ orderId: string; awb: string } | null>(null)
   const [pkgDims, setPkgDims] = useState<Record<string, { w: number; h: number; l: number }>>({})
 
   const patch = useCallback((id: string, update: Partial<RowState>) => {
@@ -330,21 +396,6 @@ function BulkTable({ orders }: { orders: BulkOrder[] }) {
       patch(order.id, { trackLoading: false, trackStatus: data.status ?? 'Unknown' })
     } catch (e: any) {
       patch(order.id, { trackLoading: false, trackError: e.message })
-    }
-  }
-
-  async function requestPickup(order: BulkOrder) {
-    patch(order.id, { pickupLoading: true })
-    try {
-      const res  = await fetch(`/api/admin/orders/${order.id}/pickup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quantity: 1 }),
-      })
-      const data = await res.json()
-      patch(order.id, { pickupLoading: false, pickupDone: res.ok, bookError: res.ok ? undefined : (data.error ?? 'Pickup failed') })
-    } catch (e: any) {
-      patch(order.id, { pickupLoading: false, bookError: e.message })
     }
   }
 
@@ -510,11 +561,11 @@ function BulkTable({ orders }: { orders: BulkOrder[] }) {
                           NDR
                         </button>
                       )}
-                      {/* Pickup */}
+                      {/* Pickup — requires AWB (booked) first, then opens date/time modal */}
                       {awb && !rs.pickupDone && (
-                        <button onClick={() => requestPickup(order)} disabled={rs.pickupLoading}
-                          className="px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded hover:bg-amber-100 disabled:opacity-50 whitespace-nowrap">
-                          {rs.pickupLoading ? '…' : rs.pickupDone ? 'Requested' : 'Pickup'}
+                        <button onClick={() => setPickupModal({ orderId: order.id, awb })}
+                          className="px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded hover:bg-amber-100 whitespace-nowrap">
+                          Pickup
                         </button>
                       )}
                       {rs.pickupDone && (
@@ -557,6 +608,19 @@ function BulkTable({ orders }: { orders: BulkOrder[] }) {
           onDone={() => {
             patch(cancelModal.orderId, { cancelDone: true, awb: null })
             setCancelModal(null)
+          }}
+        />
+      )}
+
+      {/* Pickup modal — date + time + quantity required */}
+      {pickupModal && (
+        <PickupModal
+          orderId={pickupModal.orderId}
+          awb={pickupModal.awb}
+          onClose={() => setPickupModal(null)}
+          onDone={() => {
+            patch(pickupModal.orderId, { pickupDone: true })
+            setPickupModal(null)
           }}
         />
       )}

@@ -22,6 +22,8 @@ interface Order {
   created_at: string
   user_id: string
   customerName: string | null
+  delivery_awb: string | null
+  delivery_partner: string | null
 }
 
 interface Props {
@@ -187,6 +189,7 @@ export default function BulkActions({ initialOrders, statusFilter, searchQuery }
                 <ColHeader label="Total"     colKey="total" align="right" />
                 <ColHeader label="Status"    colKey="status" />
                 <ColHeader label="Payment"   colKey="payment" />
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 whitespace-nowrap">Shipment</th>
                 <ColHeader label="Date"      colKey="created_at" />
                 <th className="text-right px-4 py-3 text-xs text-gray-500 font-medium">Actions</th>
               </tr>
@@ -227,6 +230,16 @@ export default function BulkActions({ initialOrders, statusFilter, searchQuery }
                         : <span className="text-gray-300 text-xs">—</span>
                       }
                     </td>
+                    <td className="px-4 py-3">
+                      {order.delivery_awb ? (
+                        <div>
+                          <p className="font-mono text-xs text-gray-700">{order.delivery_awb}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{order.delivery_partner}</p>
+                        </div>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
                       {new Date(order.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
                     </td>
@@ -240,7 +253,7 @@ export default function BulkActions({ initialOrders, statusFilter, searchQuery }
               })}
               {displayed.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-gray-400">No orders found.</td>
+                  <td colSpan={9} className="py-12 text-center text-gray-400">No orders found.</td>
                 </tr>
               )}
             </tbody>

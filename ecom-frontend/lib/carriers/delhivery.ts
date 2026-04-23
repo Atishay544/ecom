@@ -260,33 +260,36 @@ export async function delhiveryUpdateShipment(
 export async function delhiveryCancel(
   cfg: CarrierConfig,
   waybill: string
-): Promise<boolean> {
+): Promise<{ success: boolean; error?: string }> {
   const form = new URLSearchParams()
   form.set('data', JSON.stringify({ waybill, cancellation: true }))
 
-  const res = await fetch(`${base(cfg)}/api/p/edit`, {
-    method: 'POST',
-    headers: { ...auth(cfg), 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: form.toString(),
-    signal: AbortSignal.timeout(8000),
-  })
-  const text = await res.text()
-
-  // Delhivery sometimes returns XML instead of JSON — handle both
-  if (text.trimStart().startsWith('<')) {
-    // XML response: success indicators vary — look for cancellation_scheduled or waybill mention
-    const lower = text.toLowerCase()
-    return lower.includes('cancellation_scheduled') ||
-           lower.includes('cancelled') ||
-           (lower.includes('success') && !lower.includes('false'))
-  }
-
+  let text = ''
   try {
+    const res = await fetch(`${base(cfg)}/api/p/edit`, {
+      method: 'POST',
+      headers: { ...auth(cfg), 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+      signal: AbortSignal.timeout(8000),
+    })
+    text = await res.text()
+
+    // Delhivery sometimes returns XML instead of JSON — handle both
+    if (text.trimStart().startsWith('<')) {
+      const lower = text.toLowerCase()
+      const success = lower.includes('cancellation_scheduled') ||
+             (lower.includes('cancelled') && !lower.includes('cannot')) ||
+             (lower.includes('success') && !lower.includes('false'))
+      const error = success ? undefined : 'Delhivery rejected cancellation (shipment may be in transit or already dispatched)'
+      return { success, error }
+    }
+
     const json = JSON.parse(text)
-    return json?.cancellation_status === true || json?.[waybill]?.cancellation_status === true
-  } catch {
-    // Can't parse — treat HTTP 200 as success
-    return res.ok
+    const success = json?.cancellation_status === true || json?.[waybill]?.cancellation_status === true
+    const error   = success ? undefined : (json?.error ?? json?.message ?? 'Delhivery rejected cancellation — shipment may already be dispatched')
+    return { success, error }
+  } catch (e: any) {
+    return { success: false, error: e.message ?? 'Network error during cancellation' }
   }
 }
 

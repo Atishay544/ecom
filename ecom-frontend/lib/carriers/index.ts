@@ -75,12 +75,15 @@ export async function fetchCarrierLabel(
 }
 
 /** Cancel a booked shipment */
-export async function cancelCarrierShipment(cfg: CarrierConfig, waybill: string) {
+export async function cancelCarrierShipment(
+  cfg: CarrierConfig,
+  waybill: string
+): Promise<{ success: boolean; error?: string }> {
   switch (cfg.name) {
     case 'delhivery':
       return delhiveryCancel(cfg, waybill)
     default:
-      return false
+      return { success: false, error: `Cancellation not supported for "${cfg.name}"` }
   }
 }
 

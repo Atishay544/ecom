@@ -37,9 +37,18 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
+  // Status counts for tab badges
+  const { data: statusCounts } = await supabase
+    .from('orders')
+    .select('status')
+  const countMap: Record<string, number> = {}
+  for (const row of statusCounts ?? []) {
+    countMap[row.status] = (countMap[row.status] ?? 0) + 1
+  }
+
   let query = supabase
     .from('orders')
-    .select('id, total, status, payment_status, metadata, created_at, user_id', { count: 'exact' })
+    .select('id, total, status, payment_status, metadata, created_at, user_id, delivery_awb, delivery_partner', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to)
 
@@ -58,7 +67,9 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
   const ordersWithNames = (orders ?? []).map(o => ({
     ...o,
-    customerName: profileMap.get(o.user_id) ?? null,
+    customerName:    profileMap.get(o.user_id) ?? null,
+    delivery_awb:    (o as any).delivery_awb    ?? null,
+    delivery_partner:(o as any).delivery_partner ?? null,
   }))
 
   return (
@@ -67,23 +78,32 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
       </div>
 
-      {/* Status filter tabs */}
+      {/* Status filter tabs with counts */}
       <div className="flex flex-wrap gap-2 mb-4">
         <Link
           href="/admin/orders"
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${!statusFilter ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}
         >
           All
+          {!statusFilter && <span className="ml-1.5 text-xs opacity-70">{count ?? 0}</span>}
         </Link>
-        {ALL_STATUSES.map(s => (
-          <Link
-            key={s}
-            href={`/admin/orders?status=${s}`}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${statusFilter === s ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}
-          >
-            {s}
-          </Link>
-        ))}
+        {ALL_STATUSES.map(s => {
+          const n = countMap[s] ?? 0
+          return (
+            <Link
+              key={s}
+              href={`/admin/orders?status=${s}`}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors flex items-center gap-1.5 ${statusFilter === s ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+            >
+              {s.replace(/_/g, ' ')}
+              {n > 0 && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                  statusFilter === s ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+                }`}>{n}</span>
+              )}
+            </Link>
+          )
+        })}
       </div>
 
       {/* Search bar */}
@@ -91,7 +111,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
       {/* Table + Bulk Actions */}
       <BulkActions
-        initialOrders={ordersWithNames}
+        initialOrders={ordersWithNames as any}
         statusFilter={statusFilter}
         searchQuery={searchQuery}
       />

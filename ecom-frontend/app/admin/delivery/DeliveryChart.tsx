@@ -351,6 +351,8 @@ interface RowState {
   pickupDone?: boolean
   awb?: string | null
   cancelDone?: boolean
+  syncLoading?: boolean
+  syncResult?: string
 }
 
 // ── Bulk orders table ─────────────────────────────────────────────────────────
@@ -430,6 +432,23 @@ function BulkTable({ orders }: { orders: BulkOrder[] }) {
       patch(order.id, { trackLoading: false, trackStatus: data.status ?? 'Unknown' })
     } catch (e: any) {
       patch(order.id, { trackLoading: false, trackError: e.message })
+    }
+  }
+
+  async function syncStatus(order: BulkOrder) {
+    patch(order.id, { syncLoading: true, syncResult: undefined })
+    try {
+      const res  = await fetch(`/api/admin/orders/${order.id}/sync-status`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { patch(order.id, { syncLoading: false, syncResult: `Error: ${data.error ?? 'Sync failed'}` }); return }
+      if (data.cleared) {
+        // AWB was cancelled on Delhivery — clear it locally too
+        patch(order.id, { syncLoading: false, awb: null, cancelDone: true, syncResult: `Cancelled on Delhivery (${data.liveStatus})` })
+      } else {
+        patch(order.id, { syncLoading: false, trackStatus: data.liveStatus, syncResult: data.liveStatus })
+      }
+    } catch (e: any) {
+      patch(order.id, { syncLoading: false, syncResult: `Error: ${e.message}` })
     }
   }
 
@@ -581,6 +600,17 @@ function BulkTable({ orders }: { orders: BulkOrder[] }) {
                   {/* Actions */}
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1">
+                      {/* Sync — polls Delhivery live status, auto-clears AWB if cancelled */}
+                      {awb && (
+                        <button onClick={() => syncStatus(order)} disabled={rs.syncLoading}
+                          title="Fetch live status from Delhivery and sync order"
+                          className="px-2 py-1 bg-gray-50 text-gray-600 border border-gray-200 rounded hover:bg-gray-100 disabled:opacity-50 whitespace-nowrap">
+                          {rs.syncLoading ? '…' : '↻ Sync'}
+                        </button>
+                      )}
+                      {rs.syncResult && !rs.cancelDone && (
+                        <span className="text-xs text-gray-500 self-center">{rs.syncResult}</span>
+                      )}
                       {/* Track */}
                       {awb && (
                         <button onClick={() => trackOrder(order)} disabled={rs.trackLoading}
